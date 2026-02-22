@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Shine Nail Boutique | Luxury Nail Studio</title>
+  <meta name="description" content="Shine Nail Boutique — 4.9★ rated nail salon in Pikesville. Browse services, gallery, reviews, and book now." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <div class="bg-orb orb1"></div>
+  <div class="bg-orb orb2"></div>
+
+  <header class="header glass">
+    <div class="container nav">
+      <div class="logo">💅 Shine Nail Boutique</div>
+      <nav>
+        <a href="#services">Services</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a class="btn" href="#book">Book Now</a>
+    </div>
+  </header>
+
+  <section class="hero container">
+    <div class="hero-left reveal">
+      <p class="eyebrow">Top-rated local nail studio</p>
+      <h1>Luxury nails, perfect detail, and a relaxing experience every visit.</h1>
+      <p>From everyday elegance to statement designs — we blend precision, hygiene, and creativity so your nails always stand out.</p>
+      <div class="hero-actions">
+        <a class="btn" href="tel:+14434502232">📞 (443) 450-2232</a>
+        <a class="btn ghost" href="#reviews">See 4.9★ Reviews</a>
+      </div>
+      <div class="stats">
+        <div><strong>4.9★</strong><span>Google Rating</span></div>
+        <div><strong>33</strong><span>Google Reviews</span></div>
+        <div><strong>100%</strong><span>Style Match Focus</span></div>
+      </div>
+    </div>
+    <div class="hero-right reveal delay-1">
+      <img src="https://images.unsplash.com/photo-1604654894610-df63bc536371?auto=format&fit=crop&w=1200&q=80" alt="Nail art closeup" />
+    </div>
+  </section>
+
+  <section id="services" class="container section">
+    <h2 class="reveal">Services</h2>
+    <div class="grid-3">
+      <article class="card reveal"><h3>Signature Gel Manicure</h3><p>Precise shaping, cuticle care, and long-lasting gel finish with glossy durability.</p></article>
+      <article class="card reveal delay-1"><h3>Luxury Spa Pedicure</h3><p>Exfoliation, massage, hydration mask, and polish that leaves feet refreshed and polished.</p></article>
+      <article class="card reveal delay-2"><h3>Custom Nail Art</h3><p>Bring your inspiration photo and we’ll craft a personalized design set for you.</p></article>
+    </div>
+  </section>
+
+  <section class="band section">
+    <div class="container split">
+      <div class="reveal">
+        <h2>Why clients keep coming back</h2>
+        <ul>
+          <li>Clean, modern salon environment</li>
+          <li>Friendly team and consistent quality</li>
+          <li>Detailed prep for stronger retention</li>
+          <li>Trend-forward color and design options</li>
+        </ul>
+      </div>
+      <div class="quote reveal delay-1">“Excellent customer service and atmosphere.”</div>
+    </div>
+  </section>
+
+  <section id="gallery" class="container section">
+    <h2 class="reveal">Photo Gallery</h2>
+    <div class="masonry">
+      <img class="reveal" src="https://images.unsplash.com/photo-1519014816548-bf5fe059798b?auto=format&fit=crop&w=900&q=80" alt="Nail style 1"/>
+      <img class="reveal delay-1" src="https://images.unsplash.com/photo-1522338140262-f46f5913618a?auto=format&fit=crop&w=900&q=80" alt="Nail style 2"/>
+      <img class="reveal delay-2" src="https://images.unsplash.com/photo-1527799820374-dcf8d9d4a388?auto=format&fit=crop&w=900&q=80" alt="Nail style 3"/>
+      <img class="reveal" src="https://images.unsplash.com/photo-1596178060810-728d1f8f53ef?auto=format&fit=crop&w=900&q=80" alt="Nail style 4"/>
+      <img class="reveal delay-1" src="https://images.unsplash.com/photo-1610992234173-6f0f21f2f617?auto=format&fit=crop&w=900&q=80" alt="Nail style 5"/>
+      <img class="reveal delay-2" src="https://images.unsplash.com/photo-1487412720507-e7ab37603c6f?auto=format&fit=crop&w=900&q=80" alt="Nail style 6"/>
+    </div>
+  </section>
+
+  <section id="reviews" class="container section">
+    <h2 class="reveal">Client Reviews</h2>
+    <div class="grid-3">
+      <blockquote class="card reveal">“The service and prices are really good.” <cite>— Google Review</cite></blockquote>
+      <blockquote class="card reveal delay-1">“Excellent customer service and atmosphere.” <cite>— Google Review</cite></blockquote>
+      <blockquote class="card reveal delay-2">“A very positive and relaxing experience.” <cite>— Google Review</cite></blockquote>
+    </div>
+  </section>
+
+  <section class="container section">
+    <h2 class="reveal">Leave a Comment</h2>
+    <form id="commentForm" class="comment-form reveal">
+      <input id="name" placeholder="Your name" required>
+      <select id="rating" required>
+        <option value="">Rating</option>
+        <option>5 ★★★★★</option><option>4 ★★★★☆</option><option>3 ★★★☆☆</option>
+      </select>
+      <textarea id="comment" rows="4" placeholder="How was your appointment?" required></textarea>
+      <button class="btn" type="submit">Post Comment</button>
+    </form>
+    <div id="comments" class="comments"></div>
+  </section>
+
+  <section id="book" class="cta section">
+    <div class="container reveal">
+      <h2>Ready for your next set?</h2>
+      <p>Call to book your appointment now.</p>
+      <a class="btn" href="tel:+14434502232">Book: (443) 450-2232</a>
+    </div>
+  </section>
+
+  <footer id="contact" class="footer">
+    <div class="container">
+      <p><strong>Shine Nail Boutique</strong> · 10429 Stevenson Rd, Pikesville, MD · (443) 450-2232</p>
+    </div>
+  </footer>
+
+  <script src="script.js"></script>
+</body>
+</html>
