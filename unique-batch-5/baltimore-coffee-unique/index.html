@@ -1,21 +1,55 @@
-﻿<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Baltimore Coffee</title>
-<link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin><link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap' rel='stylesheet'>
-<style>
-*{box-sizing:border-box}body{margin:0;font-family:Inter,sans-serif;background:#ecf4ff;color:#1f2937}.container{width:min(1150px,92%);margin:auto}
-.top{position:sticky;top:0;background:#ffffffe0;backdrop-filter:blur(8px);border-bottom:1px solid #e5e7eb}.nav{display:flex;justify-content:space-between;align-items:center;padding:12px 0}.brand{font-weight:800;color:#0f2d5c}
-.hero{display:grid;grid-template-columns:.9fr 1.1fr;gap:20px;align-items:center;padding:56px 0}.hero img{width:100%;height:360px;object-fit:cover;border-radius:16px;box-shadow:0 14px 34px rgba(0,0,0,.17)}
-.btn{display:inline-block;padding:11px 16px;border-radius:999px;text-decoration:none;font-weight:700;background:#0f2d5c;color:#fff}.btn2{background:#fff;color:#0f2d5c;border:1px solid #0f2d5c}
-.long{padding:52px 0}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px}
-.gallery{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}.gallery img{width:100%;height:210px;object-fit:cover;border-radius:12px}
-.slider{background:#0f2d5c;color:#fff;border-radius:12px;padding:16px;overflow:hidden}.track{display:flex;transition:transform .55s ease}.slide{min-width:100%;padding:6px}
-.map{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:14px}.pulse{animation:pulse 3s infinite}@keyframes pulse{0%,100%{transform:scale(1)}50%{transform:scale(1.02)}}
-@media(max-width:900px){.hero,.cards,.gallery{grid-template-columns:1fr 1fr}}@media(max-width:620px){.hero,.cards,.gallery{grid-template-columns:1fr}}
+<!doctype html><html lang='en'><head><meta charset='utf-8'><meta name='viewport' content='width=device-width,initial-scale=1'><title>Baltimore Coffee</title><link rel='preconnect' href='https://fonts.googleapis.com'><link rel='preconnect' href='https://fonts.gstatic.com' crossorigin><link href='https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;600;700&display=swap' rel='stylesheet'><style>
+:root{--bg:#061a3a;--ink:#e9f2ff;--accent:#4cc9f0;--accent2:#ffd166}*{box-sizing:border-box}body{margin:0;font-family:'Space Grotesk',sans-serif;background:linear-gradient(180deg,#061a3a,#0b2f63 35%,#f0f6ff 35%,#f0f6ff);color:#10213a}
+.wrap{width:min(1200px,92%);margin:auto}.hero{min-height:86vh;display:grid;grid-template-columns:1.1fr .9fr;gap:24px;align-items:center;color:var(--ink)}.tag{display:inline-block;padding:6px 10px;border:1px solid #8fc9ff;border-radius:999px}.cta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px}.btn{padding:12px 16px;border-radius:12px;text-decoration:none;font-weight:700}.btnA{background:var(--accent);color:#04203b}.btnB{background:#0f3d78;color:#fff;border:1px solid #7db9ff}
+.hero img{width:100%;height:430px;object-fit:cover;border-radius:18px;border:2px solid #8dc7ff;animation:float 5s ease-in-out infinite}@keyframes float{50%{transform:translateY(-8px)}}
+.panel{margin-top:-80px;background:#fff;border-radius:22px;padding:24px;box-shadow:0 25px 50px rgba(5,20,40,.18)}
+.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:18px}.mosaic{display:grid;grid-template-columns:2fr 1fr;gap:10px}.mosaic img{width:100%;height:220px;object-fit:cover;border-radius:12px}.mosaic img.tall{height:450px}
+.timeline{display:grid;gap:10px}.step{background:#f4f9ff;border:1px solid #d8e8ff;border-radius:12px;padding:12px}
+.marquee{overflow:hidden;border-radius:14px;background:#082752;color:#fff}.track{display:flex;gap:22px;padding:10px 0;animation:marq 18s linear infinite;white-space:nowrap}@keyframes marq{from{transform:translateX(0)}to{transform:translateX(-50%)}}
+.reviews{margin-top:20px;background:#081f3f;color:#e8f2ff;border-radius:16px;padding:18px}.slides{position:relative;min-height:110px}.r{position:absolute;inset:0;opacity:0;transform:translateX(20px);transition:.45s}.r.on{opacity:1;transform:none}
+.long{padding:42px 0}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:12px}.card{background:#fff;border:1px solid #dbe8ff;border-radius:12px;padding:14px}
+.footer{padding:30px 0;text-align:center;color:#5b6d87}@media(max-width:900px){.hero,.grid,.mosaic,.cards{grid-template-columns:1fr}.panel{margin-top:0}}
 </style></head><body>
-<header class='top'><div class='container nav'><div class='brand'>Baltimore Coffee</div><a class='btn' href='https://www.google.com/maps/place/Baltimore+Coffee/data=!4m7!3m6!1s0x89c80e17d6e3ce47:0x71e11e27ebfd0ef8!8m2!3d39.4330638!4d-76.6274245!16s%2Fg%2F1tmklyqn!19sChIJR87j1hcOyIkR-A796yce4XE' target='_blank'>Google Place</a></div></header>
-<section class='container hero'><div><h1>Baltimore Coffee</h1><p><strong>Rating:</strong> 4.6 ★ &nbsp; <strong>Phone:</strong> (410) 561-1080</p><p>This page uses photos pulled from this store's Google Maps listing and a custom layout theme.</p><p><a class='btn' href='https://www.google.com/maps/place/Baltimore+Coffee/data=!4m7!3m6!1s0x89c80e17d6e3ce47:0x71e11e27ebfd0ef8!8m2!3d39.4330638!4d-76.6274245!16s%2Fg%2F1tmklyqn!19sChIJR87j1hcOyIkR-A796yce4XE' target='_blank'>Open Listing</a> <a class='btn btn2' href='#photos'>View Photos</a></p></div><img class='pulse' src='https://lh3.googleusercontent.com/p/AF1QipNJpYmnUpy_XuZV9NK71vo03NGeHQWTzwuG12xQ=w408-h306-k-no'></section>
-<section id='photos' class='container long'><h2>Store Photos (Google Maps)</h2><div class='gallery'><img src='https://lh3.googleusercontent.com/p/AF1QipNJpYmnUpy_XuZV9NK71vo03NGeHQWTzwuG12xQ=w408-h306-k-no'><img src='https://lh3.googleusercontent.com/gps-cs-s/AHVAwepOYr7iDkI8qHyIlzljqFPKoXpNBgg5ezhy0SbLktyfbdOrzj0NPl-734_-INM1veYoZNqZwTQCbQFWDAy9rnmgVrarZiNqifY2MSBVvtZX9C_9_pm38mI_u2NJAADKZa3_z9ii=w251-h298-k-no'><img src='https://lh3.googleusercontent.com/gps-cs-s/AHVAwerbqgONRo6p5bWCgKS4XjbZe0pnyDbGdR22-YY0RebTs61ZNyPvicEgDKKgpmOsqY6VS04Bg6N8tC2P3A45pHISlEwLS4WLT95P-ZfgHrkKuks-zA968j6E6SEbcboubU4gks_-=w397-h298-k-no'><img src='https://lh3.googleusercontent.com/p/AF1QipPxFrFgXJBFEizc_IgKnWUBywl0gCi4mmQv9NtR=w388-h298-k-no'><img src='https://lh3.googleusercontent.com/gps-cs-s/AHVAwercWsHHDqpL3sAMmXkvvqwWLeSoCKDJmOudhjuYmaIcPMsuFoBX0kgJ-8G75CIXZjoDPohX9H5n_3JrGhhjGefEIvHguk1ggo5JkY_W9n11mwXtaGdweneg638632hPE_u51RMs=w224-h481-k-no'><img src='https://lh3.googleusercontent.com/p/AF1QipNmS44PW_koWnOzJR1kHjQE_SskvcklKkPtUKUb=w397-h298-k-no'></div></section>
-<section class='container long'><h2>More About This Location</h2><div class='cards'><div class='card'><h3>Atmosphere</h3><p>Locally loved for service and consistency.</p></div><div class='card'><h3>Quality</h3><p>High review score backed by customer feedback.</p></div><div class='card'><h3>Convenience</h3><p>Quick access to listing, phone, and map directions.</p></div></div></section>
-<section class='container long'><h2>Rotating Reviews</h2><div class='slider'><div class='track' id='t'><div class='slide'>“Excellent service and a great local spot.”</div><div class='slide'>“Friendly staff and quality every visit.”</div><div class='slide'>“Would definitely recommend to others.”</div><div class='slide'>“One of the better places in the area.”</div></div></div></section>
-<section class='container long'><h2>Plan Your Visit</h2><div class='map'><p>Use the official Google Place page for directions, current hours, photos, and reviews.</p><p><a class='btn' target='_blank' href='https://www.google.com/maps/place/Baltimore+Coffee/data=!4m7!3m6!1s0x89c80e17d6e3ce47:0x71e11e27ebfd0ef8!8m2!3d39.4330638!4d-76.6274245!16s%2Fg%2F1tmklyqn!19sChIJR87j1hcOyIkR-A796yce4XE'>Open Google Maps Place</a></p></div></section>
-<script>const t=document.getElementById('t');let k=0;setInterval(()=>{k=(k+1)%4;t.style.transform='translateX(' + (-100*k) + '%)'},3000);</script>
+<div class='wrap hero'>
+  <div><span class='tag'>Baltimore Coffee • 4.6 ★</span><h1>Neighborhood coffee, serious quality, and a cozy local vibe.</h1><p>Phone: <strong>(410) 561-1080</strong></p><div class='cta'><a class='btn btnA' target='_blank' href='https://www.google.com/maps/place/Baltimore+Coffee/data=!4m7!3m6!1s0x89c80e17d6e3ce47:0x71e11e27ebfd0ef8!8m2!3d39.4330638!4d-76.6274245!16s%2Fg%2F1tmklyqn!19sChIJR87j1hcOyIkR-A796yce4XE'>Open Google Place</a><a class='btn btnB' href='#photos'>Jump to Photos</a></div></div>
+  <img src='https://lh3.googleusercontent.com/p/AF1QipNJpYmnUpy_XuZV9NK71vo03NGeHQWTzwuG12xQ=w408-h306-k-no'>
+</div>
+
+<section class='wrap panel long' id='photos'>
+  <h2>Store Photo Wall (from this listing)</h2>
+  <div class='grid'>
+    <div class='mosaic'>
+      <img class='tall' src='https://lh3.googleusercontent.com/gps-cs-s/AHVAwepOYr7iDkI8qHyIlzljqFPKoXpNBgg5ezhy0SbLktyfbdOrzj0NPl-734_-INM1veYoZNqZwTQCbQFWDAy9rnmgVrarZiNqifY2MSBVvtZX9C_9_pm38mI_u2NJAADKZa3_z9ii=w251-h298-k-no'>
+      <img src='https://lh3.googleusercontent.com/p/AF1QipPxFrFgXJBFEizc_IgKnWUBywl0gCi4mmQv9NtR=w388-h298-k-no'>
+      <img src='https://lh3.googleusercontent.com/p/AF1QipNmS44PW_koWnOzJR1kHjQE_SskvcklKkPtUKUb=w397-h298-k-no'>
+    </div>
+    <div class='timeline'>
+      <div class='step'><strong>Atmosphere:</strong> local café energy</div>
+      <div class='step'><strong>Known for:</strong> coffee + friendly staff</div>
+      <div class='step'><strong>Map source:</strong> Google Place media only</div>
+      <img style='width:100%;height:140px;object-fit:cover;border-radius:10px' src='https://lh3.googleusercontent.com/gps-cs-s/AHVAwerbqgONRo6p5bWCgKS4XjbZe0pnyDbGdR22-YY0RebTs61ZNyPvicEgDKKgpmOsqY6VS04Bg6N8tC2P3A45pHISlEwLS4WLT95P-ZfgHrkKuks-zA968j6E6SEbcboubU4gks_-=w397-h298-k-no'>
+    </div>
+  </div>
+
+  <div class='marquee long'><div class='track'><span>☕ Baltimore Coffee</span><span>•</span><span>Local favorite</span><span>•</span><span>Google Place Verified Photos</span><span>•</span><span>Open listing for directions</span><span>•</span><span>☕ Baltimore Coffee</span><span>•</span><span>Local favorite</span></div></div>
+
+  <div class='reviews'>
+    <h3>Rotating review highlights</h3>
+    <div class='slides'>
+      <div class='r on'>“The staff is extremely friendly, and the coffee is so good.”</div>
+      <div class='r'>“One of my favorite café stops in this area.”</div>
+      <div class='r'>“Great place to work and grab coffee.”</div>
+      <div class='r'>“Consistent drinks and a cozy setup.”</div>
+    </div>
+  </div>
+
+  <div class='cards long'>
+    <div class='card'><h4>Visit Planning</h4><p>Use the map listing for latest hours, reviews, and navigation.</p></div>
+    <div class='card'><h4>Photo Accuracy</h4><p>This page uses only image links taken from this store’s Maps place media.</p></div>
+    <div class='card'><h4>Quick Link</h4><p><a target='_blank' href='https://www.google.com/maps/place/Baltimore+Coffee/data=!4m7!3m6!1s0x89c80e17d6e3ce47:0x71e11e27ebfd0ef8!8m2!3d39.4330638!4d-76.6274245!16s%2Fg%2F1tmklyqn!19sChIJR87j1hcOyIkR-A796yce4XE'>Open official Google Place</a></p></div>
+  </div>
+</section>
+
+<div class='footer'>Baltimore Coffee • custom unique layout remake</div>
+<script>const rs=[...document.querySelectorAll('.r')];let i=0;setInterval(()=>{rs[i].classList.remove('on');i=(i+1)%rs.length;rs[i].classList.add('on');},2600);</script>
 </body></html>
