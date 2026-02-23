@@ -1,0 +1,6 @@
+const items=[{id:1,n:'Boost Blend',p:18},{id:2,n:'Citrus Mate',p:20},{id:3,n:'Mint Focus',p:19},{id:4,n:'Gift Sampler Box',p:42},{id:5,n:'Daily Energy Pack',p:28},{id:6,n:'Chocolate Mate',p:22},{id:7,n:'Starter Kit',p:55},{id:8,n:'Monthly Subscription',p:35}];
+const cart=[];const g=document.getElementById('grid');const c=document.getElementById('cart');
+g.innerHTML=items.map(i=>`<article class="p"><small>Yerba Blend</small><h3>${i.n}</h3><p class="price">$${i.p}</p><button data-id="${i.id}">Add</button></article>`).join('');
+function draw(){document.getElementById('count').textContent=cart.reduce((a,b)=>a+b.q,0);const sum=cart.reduce((a,b)=>a+b.p*b.q,0);c.innerHTML=(cart.map(i=>`<div class="line"><span>${i.n} x${i.q}</span><strong>$${(i.p*i.q).toFixed(2)}</strong></div>`).join('')||'<em>Cart empty</em>')+`<hr><div class="line"><span>Total</span><strong>$${sum.toFixed(2)}</strong></div>`}
+document.addEventListener('click',e=>{const id=+e.target.dataset.id;if(!id)return;const it=items.find(x=>x.id===id);const hit=cart.find(x=>x.id===id);if(hit)hit.q++;else cart.push({...it,q:1});draw();});
+document.getElementById('year').textContent=new Date().getFullYear();draw();
