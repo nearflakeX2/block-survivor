@@ -1,0 +1,81 @@
+﻿<!doctype html>
+<html lang='en'>
+<head>
+  <meta charset='UTF-8' />
+  <meta name='viewport' content='width=device-width, initial-scale=1.0' />
+  <title>The Boxwood Collection | Premium Local Website</title>
+  <meta name='description' content='The Boxwood Collection — modern local storefront for Curated Home & Gift in Maryland.' />
+  <link rel='preconnect' href='https://fonts.googleapis.com'>
+  <link rel='preconnect' href='https://fonts.gstatic.com' crossorigin>
+  <link href='https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&family=Playfair+Display:wght@600;700&display=swap' rel='stylesheet'>
+  <link rel='stylesheet' href='styles.css' />
+</head>
+<body>
+<header class='top'>
+  <div class='container nav'>
+    <a class='brand' href='#home'><span class='logo'>★</span><strong>The Boxwood Collection</strong></a>
+    <nav><a href='#shop'>Shop</a><a href='#about'>About</a><a href='#faq'>FAQ</a><a href='#contact'>Contact</a></nav>
+    <button id='cartBtn'>Cart <span id='count'>0</span></button>
+  </div>
+</header>
+
+<section id='home' class='hero'>
+  <div class='container hero-grid'>
+    <div>
+      <p class='pill'>Curated Home & Gift • Maryland Local Business</p>
+      <h1>Elegant gifts and thoughtful finds for every moment.</h1>
+      <p>Discover handcrafted selections, seasonal favorites, and gift-ready bundles designed to make everyday occasions feel special.</p>
+      <div class='actions'><a class='btn' href='#shop'>Browse Collection</a><a class='btn ghost' href='tel:4105262220'>Call (410) 526-2220</a></div>
+      <ul class='ticks'><li>✔ Gift-ready packaging</li><li>✔ Seasonal collections</li><li>✔ Local pickup + shipping</li></ul>
+    </div>
+    <aside class='hero-card'>
+      <h3>Store Info</h3>
+      <p>15 Railroad Ave, Reisterstown, MD<br>(410) 526-2220</p>
+      <p><strong>Hours:</strong> Open now</p>
+    </aside>
+  </div>
+</section>
+
+<section id='shop' class='section'>
+  <div class='container'>
+    <h2>Featured Catalog</h2>
+    <div id='grid' class='grid'></div>
+  </div>
+</section>
+
+<section id='about' class='section alt'>
+  <div class='container split'>
+    <div>
+      <h2>Why customers choose The Boxwood Collection</h2>
+      <p>We combine personal service with quality products, helping shoppers find meaningful gifts quickly and confidently.</p>
+      <ul>
+        <li>Personalized recommendations</li>
+        <li>Curated premium collections</li>
+        <li>Fast event and holiday gifting options</li>
+      </ul>
+    </div>
+    <div class='quote'>"Beautiful selection and friendly service — my go-to shop for gifts."</div>
+  </div>
+</section>
+
+<section id='faq' class='section'>
+  <div class='container'>
+    <h2>Frequently Asked Questions</h2>
+    <details><summary>Do you offer same-day pickup?</summary><p>Yes, most in-stock items can be prepared for same-day pickup.</p></details>
+    <details><summary>Can I place bulk gift orders?</summary><p>Absolutely. We support corporate and event gifting with volume pricing.</p></details>
+    <details><summary>Do you ship nationwide?</summary><p>Yes. Shipping options are available at checkout with tracking.</p></details>
+  </div>
+</section>
+
+<footer id='contact'>
+  <div class='container foot'>
+    <p><strong>The Boxwood Collection</strong> · 15 Railroad Ave, Reisterstown, MD</p>
+    <p>(410) 526-2220</p>
+    <p>© <span id='year'></span> The Boxwood Collection</p>
+  </div>
+</footer>
+
+<aside id='cart' class='cart'></aside>
+<script src='app.js'></script>
+</body>
+</html>
