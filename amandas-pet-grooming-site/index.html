@@ -3,113 +3,171 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Amanda's Pet Grooming | Professional Dog & Cat Grooming</title>
-  <meta name="description" content="Amanda's Pet Grooming — trusted local grooming with 4.9★ reviews. Book your pet's spa day today." />
+  <title>Amanda's Pet Grooming | Timonium, MD</title>
+  <meta name="description" content="Professional dog and cat grooming in Timonium, MD. Gentle care, skilled groomers, and stress-free appointments at Amanda's Pet Grooming." />
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;700;800&family=DM+Serif+Display:ital@0;1&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
-  <header class="topbar">
+  <header class="header">
     <div class="container nav">
-      <div class="brand">🐾 Amanda's Pet Grooming</div>
-      <a class="btn btn-small" href="#book">Book Appointment</a>
+      <a href="#" class="brand">
+        <span class="paw">🐾</span>
+        <span>
+          <strong>Amanda's Pet Grooming</strong>
+          <small>Timonium, Maryland</small>
+        </span>
+      </a>
+      <nav>
+        <a href="#services">Services</a>
+        <a href="#about">About</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a class="btn btn-small" href="#booking">Book Now</a>
     </div>
   </header>
 
-  <section class="hero">
-    <div class="container hero-grid">
+  <main>
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="pill">Top-rated local groomer • 4.9 ★ (57 reviews)</p>
+          <h1>Stress-free grooming that keeps tails wagging.</h1>
+          <p>
+            Trusted by Timonium pet families for gentle handling, clean results, and reliable care.
+            From nail trims to full spa-style grooms, we treat every pet like our own.
+          </p>
+          <div class="cta-row">
+            <a class="btn" href="#booking">Request Appointment</a>
+            <a class="btn btn-outline" href="tel:+14105617387">Call (410) 561-7387</a>
+          </div>
+          <ul class="benefits">
+            <li>✓ Experienced groomers</li>
+            <li>✓ Calm, pet-first approach</li>
+            <li>✓ Flexible scheduling</li>
+          </ul>
+        </div>
+        <aside class="hero-card">
+          <h3>Quick Booking</h3>
+          <p>Tell us your pet details and we’ll confirm your time.</p>
+          <a class="btn block" href="#booking">Start Booking</a>
+          <small>Address: 2341 York Rd, Timonium, MD 21093</small>
+        </aside>
+      </div>
+    </section>
+
+    <section id="services" class="section">
+      <div class="container">
+        <div class="section-head">
+          <h2>Services & Pricing</h2>
+          <p>Transparent packages for dogs and cats of all sizes.</p>
+        </div>
+        <div class="cards" id="serviceGrid"></div>
+      </div>
+    </section>
+
+    <section id="about" class="section section-alt">
+      <div class="container split">
+        <div>
+          <h2>Why local pet parents choose Amanda’s</h2>
+          <p>
+            Our clients mention the same things again and again: patient staff, consistent results,
+            and care that keeps nervous pets calm. We focus on safety, comfort, and detail in every appointment.
+          </p>
+          <ul>
+            <li>Breed-specific cuts and coat care</li>
+            <li>Nail trimming for anxious pets</li>
+            <li>Skin-friendly products available by request</li>
+            <li>Senior-pet friendly handling</li>
+          </ul>
+        </div>
+        <blockquote>
+          “Hands down the best groomer in town.”
+          <footer>— Google Review</footer>
+        </blockquote>
+      </div>
+    </section>
+
+    <section id="reviews" class="section">
+      <div class="container">
+        <h2>What customers are saying</h2>
+        <div class="reviews" id="reviewGrid"></div>
+      </div>
+    </section>
+
+    <section id="booking" class="section section-alt">
+      <div class="container">
+        <h2>Request an Appointment</h2>
+        <form id="bookingForm" class="booking-form">
+          <div>
+            <label>Owner Name</label>
+            <input required name="owner" placeholder="Your name" />
+          </div>
+          <div>
+            <label>Phone</label>
+            <input required name="phone" placeholder="(410) 555-1234" />
+          </div>
+          <div>
+            <label>Pet Name</label>
+            <input required name="pet" placeholder="Bella" />
+          </div>
+          <div>
+            <label>Pet Type</label>
+            <select name="type">
+              <option>Dog</option>
+              <option>Cat</option>
+            </select>
+          </div>
+          <div>
+            <label>Service</label>
+            <select name="service" id="serviceSelect"></select>
+          </div>
+          <div>
+            <label>Preferred Date</label>
+            <input type="date" name="date" required />
+          </div>
+          <div class="full">
+            <label>Notes</label>
+            <textarea name="notes" rows="4" placeholder="Temperament, grooming style, allergies, etc."></textarea>
+          </div>
+          <button class="btn" type="submit">Send Request</button>
+          <p id="formMessage"></p>
+        </form>
+      </div>
+    </section>
+
+    <section id="faq" class="section">
+      <div class="container">
+        <h2>FAQ</h2>
+        <details><summary>How long does a grooming appointment take?</summary><p>Most appointments take 1.5 to 3 hours depending on breed, coat condition, and requested style.</p></details>
+        <details><summary>Do you groom nervous pets?</summary><p>Yes. We use a calm, slow-paced approach and can note special handling preferences in your booking.</p></details>
+        <details><summary>What should I bring to the first visit?</summary><p>Bring vaccination records, any skin/allergy notes, and your preferred haircut details.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contact">
+    <div class="container footer">
       <div>
-        <p class="kicker">Trusted local groomer</p>
-        <h1>Make your pet look amazing — and feel even better.</h1>
-        <p class="lead">Gentle, professional grooming for dogs and cats. Loved by pet parents across the neighborhood.</p>
-        <div class="hero-cta">
-          <a class="btn" href="tel:+14105617387">📞 Call (410) 561-7387</a>
-          <a class="btn btn-ghost" href="#reviews">See Reviews</a>
-        </div>
-        <div class="rating-chip">
-          <span>⭐ 4.9/5</span>
-          <span>57 Google Reviews</span>
-        </div>
+        <h4>Amanda's Pet Grooming</h4>
+        <p>Professional pet grooming in Timonium, MD.</p>
       </div>
-      <div class="hero-card">
-        <img src="https://images.unsplash.com/photo-1516734212186-a967f81ad0d7?auto=format&fit=crop&w=1000&q=80" alt="Happy dog after grooming"/>
+      <div>
+        <strong>Contact</strong>
+        <p>📍 2341 York Rd, Timonium, MD 21093<br>📞 (410) 561-7387</p>
+      </div>
+      <div>
+        <strong>Hours</strong>
+        <p>Open now • Closes 4 PM<br>Call for current appointment availability.</p>
       </div>
     </div>
-  </section>
-
-  <section class="container services">
-    <h2>Popular Services</h2>
-    <div class="cards">
-      <article class="card"><h3>Full Groom</h3><p>Bath, haircut, ear cleaning, nail trim, blow-dry, and finishing spray.</p></article>
-      <article class="card"><h3>Bath & Brush</h3><p>Deep-clean bath, de-shed treatment, brushing, and coat conditioning.</p></article>
-      <article class="card"><h3>Puppy Intro</h3><p>Stress-free first grooming session to build confidence and comfort.</p></article>
-    </div>
-  </section>
-
-  <section class="gallery-wrap">
-    <div class="container">
-      <h2>Before & After Gallery</h2>
-      <div class="gallery">
-        <img src="https://images.unsplash.com/photo-1601758228041-f3b2795255f1?auto=format&fit=crop&w=800&q=80" alt="Groomed dog 1">
-        <img src="https://images.unsplash.com/photo-1548199973-03cce0bbc87b?auto=format&fit=crop&w=800&q=80" alt="Groomed dog 2">
-        <img src="https://images.unsplash.com/photo-1537151625747-768eb6cf92b2?auto=format&fit=crop&w=800&q=80" alt="Groomed dog 3">
-        <img src="https://images.unsplash.com/photo-1518020382113-a7e8fc38eac9?auto=format&fit=crop&w=800&q=80" alt="Groomed dog 4">
-      </div>
-      <p class="tiny">* Replace these stock photos with your real salon photos for best results.</p>
-    </div>
-  </section>
-
-  <section id="reviews" class="container reviews">
-    <h2>What Pet Parents Say</h2>
-    <div class="review-grid">
-      <blockquote>
-        “My dog always comes back happy, fluffy, and smelling incredible. Amanda is so patient!”
-        <cite>— Google Review</cite>
-      </blockquote>
-      <blockquote>
-        “Best grooming experience we’ve had. Professional, friendly, and super clean shop.”
-        <cite>— Google Review</cite>
-      </blockquote>
-      <blockquote>
-        “They handled my anxious pup perfectly. You can tell they truly care about animals.”
-        <cite>— Google Review</cite>
-      </blockquote>
-    </div>
-  </section>
-
-  <section class="container comments">
-    <h2>Leave a Comment</h2>
-    <form id="commentForm" class="comment-form">
-      <input type="text" id="name" placeholder="Your name" required />
-      <select id="stars" required>
-        <option value="">Rating</option>
-        <option>5 ★★★★★</option>
-        <option>4 ★★★★☆</option>
-        <option>3 ★★★☆☆</option>
-      </select>
-      <textarea id="message" rows="4" placeholder="Share your experience..." required></textarea>
-      <button class="btn" type="submit">Post Comment</button>
-    </form>
-    <div id="commentList" class="comment-list"></div>
-  </section>
-
-  <section id="book" class="cta">
-    <div class="container cta-box">
-      <h2>Ready to book your pet's next glow-up?</h2>
-      <p>Call now to reserve your spot.</p>
-      <a class="btn" href="tel:+14105617387">Call (410) 561-7387</a>
-    </div>
-  </section>
-
-  <footer class="footer">
-    <div class="container">
-      <p><strong>Amanda's Pet Grooming</strong> · 2341 York Rd · (410) 561-7387</p>
-      <p><a class="btn btn-small" target="_blank" rel="noopener" href="https://www.google.com/maps/place/Amanda%27s+Pet+Grooming/data=!4m7!3m6!1s0x89c80e078ca460e7:0x61c7c18e9629dc49!8m2!3d39.4525353!4d-76.6310547!16s%2Fg%2F11fx7rvjz2!19sChIJ52CkjAcOyIkRSdwplo7Bx2E">View Google Maps Listing</a></p>
-    </div>
+    <p class="copyright">© <span id="year"></span> Amanda's Pet Grooming</p>
   </footer>
 
-  <script src="script.js"></script>
+  <script src="app.js"></script>
 </body>
 </html>
