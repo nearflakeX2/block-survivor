@@ -6,7 +6,7 @@ nav a{text-decoration:none;color:#5e5468;margin:.45rem;font-weight:700;font-size
 .hero{padding:4rem 0;background:radial-gradient(circle at 20% 20%,#ffe7f5,#fff7fb 45%)}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:1.2rem;align-items:start}.pill{display:inline-block;padding:.35rem .7rem;border-radius:999px;background:#fce0f0;color:#8b3b6c;font-weight:700;font-size:.8rem}
 h1{font:400 clamp(2rem,5vw,3.6rem)/1.05 Prata,serif;margin:.8rem 0;max-width:14ch}.cta{display:flex;gap:.7rem;flex-wrap:wrap}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1rem}
 .section{padding:2.8rem 0}.alt{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.service{background:#fff;border:1px solid #edd8e8;border-radius:12px;padding:1rem}.price{font-weight:800;color:#8f2f6b}
-.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}.gallery div{background:#fff;border:1px solid #ebd7e6;padding:1rem;border-radius:12px;text-align:center}
+.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}.gallery div{background:#fff;border:1px solid #ebd7e6;border-radius:12px;overflow:hidden;aspect-ratio:4/3}.gallery img{width:100%;height:100%;object-fit:cover;display:block}
 form{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}input,select,textarea{width:100%;padding:.7rem;border:1px solid #d9bfd2;border-radius:10px;font:inherit}textarea{grid-column:1/-1}
 .copy{color:#7d7287;font-size:.85rem}
 @media(max-width:900px){nav{display:none}.grid,.cards,.gallery,form{grid-template-columns:1fr}}
