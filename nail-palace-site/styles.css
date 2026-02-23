@@ -1,0 +1,12 @@
+:root{--bg:#fff7fb;--ink:#2a2130;--muted:#6b6074;--brand:#b1458d;--brand2:#e279b4;--line:#efd8e7}
+*{box-sizing:border-box}body{margin:0;font-family:Inter,system-ui,sans-serif;background:var(--bg);color:var(--ink)}
+.container{width:min(1100px,92%);margin:0 auto}.header{position:sticky;top:0;background:rgba(255,247,251,.9);border-bottom:1px solid var(--line);backdrop-filter:blur(8px)}
+.nav{display:flex;align-items:center;justify-content:space-between;padding:.9rem 0}.brand{text-decoration:none;color:var(--ink);display:flex;gap:.4rem;align-items:center}
+nav a{text-decoration:none;color:#5e5468;margin:.45rem;font-weight:700;font-size:.93rem}.btn{background:linear-gradient(135deg,var(--brand),var(--brand2));color:#fff;text-decoration:none;border:0;border-radius:10px;padding:.68rem 1rem;font-weight:800;cursor:pointer;display:inline-block}.ghost{background:transparent;border:1px solid #bca1bb;color:#6b3f63}
+.hero{padding:4rem 0;background:radial-gradient(circle at 20% 20%,#ffe7f5,#fff7fb 45%)}.grid{display:grid;grid-template-columns:1.2fr .8fr;gap:1.2rem;align-items:start}.pill{display:inline-block;padding:.35rem .7rem;border-radius:999px;background:#fce0f0;color:#8b3b6c;font-weight:700;font-size:.8rem}
+h1{font:400 clamp(2rem,5vw,3.6rem)/1.05 Prata,serif;margin:.8rem 0;max-width:14ch}.cta{display:flex;gap:.7rem;flex-wrap:wrap}.card{background:#fff;border:1px solid var(--line);border-radius:14px;padding:1rem}
+.section{padding:2.8rem 0}.alt{background:#fff;border-top:1px solid var(--line);border-bottom:1px solid var(--line)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:1rem}.service{background:#fff;border:1px solid #edd8e8;border-radius:12px;padding:1rem}.price{font-weight:800;color:#8f2f6b}
+.gallery{display:grid;grid-template-columns:repeat(4,1fr);gap:.8rem}.gallery div{background:#fff;border:1px solid #ebd7e6;padding:1rem;border-radius:12px;text-align:center}
+form{display:grid;grid-template-columns:1fr 1fr;gap:.8rem}input,select,textarea{width:100%;padding:.7rem;border:1px solid #d9bfd2;border-radius:10px;font:inherit}textarea{grid-column:1/-1}
+.copy{color:#7d7287;font-size:.85rem}
+@media(max-width:900px){nav{display:none}.grid,.cards,.gallery,form{grid-template-columns:1fr}}
