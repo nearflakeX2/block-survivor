@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>RScrafts&more | Handmade Crafts & Custom Gifts</title>
+  <meta name="description" content="Shop handcrafted gifts, custom décor, and one-of-a-kind creations from RScrafts&more in Middle River, MD." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Playfair+Display:wght@600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <div class="container nav-wrap">
+      <a class="brand" href="#home">
+        <span class="logo">RS</span>
+        <span>
+          <strong>RScrafts&more</strong>
+          <small>Handmade in Maryland</small>
+        </span>
+      </a>
+      <nav>
+        <a href="#shop">Shop</a>
+        <a href="#about">About</a>
+        <a href="#featured">Featured</a>
+        <a href="#faq">FAQ</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <button class="cart-btn" id="cartBtn">🛒 <span id="cartCount">0</span></button>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="badge">Local Craft Store • 1133 Orems Rd, Middle River, MD</p>
+          <h1>Meaningful handmade gifts for every moment.</h1>
+          <p>
+            Discover personalized tumblers, custom signs, home décor, and seasonal collections crafted with care.
+            Every item is made in small batches and designed to feel truly one-of-a-kind.
+          </p>
+          <div class="hero-cta">
+            <a class="btn primary" href="#shop">Shop Collection</a>
+            <a class="btn ghost" href="#contact">Custom Order</a>
+          </div>
+          <ul class="trust-row">
+            <li>✨ Small-Batch Handmade</li>
+            <li>📦 U.S. Shipping</li>
+            <li>🎁 Gift-Ready Packaging</li>
+          </ul>
+        </div>
+        <div class="hero-card">
+          <h3>Bestsellers This Week</h3>
+          <p>Top picks customers love for birthdays, weddings, and everyday joy.</p>
+          <div class="mini-grid">
+            <article><strong>Personalized Tumbler</strong><span>$28</span></article>
+            <article><strong>Family Name Sign</strong><span>$64</span></article>
+            <article><strong>Soy Candle Set</strong><span>$36</span></article>
+            <article><strong>Gift Box Bundle</strong><span>$79</span></article>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="section" id="shop">
+      <div class="container">
+        <div class="section-head">
+          <h2>Shop Our Collection</h2>
+          <div class="filters" id="filters"></div>
+        </div>
+        <div class="product-grid" id="productGrid"></div>
+      </div>
+    </section>
+
+    <section class="section alt" id="featured">
+      <div class="container feature-grid">
+        <div>
+          <h2>Why customers choose RScrafts&more</h2>
+          <p>
+            We focus on quality materials, intentional design, and customization that tells your story.
+            Whether you’re gifting someone special or treating yourself, each piece is crafted to last.
+          </p>
+          <ul>
+            <li>Premium blanks, durable finishes, and professional-grade vinyl/engraving options</li>
+            <li>Personalization previews before production on custom items</li>
+            <li>Fast turnaround for events, party favors, and business gifting</li>
+            <li>Seasonal drops with limited-run designs</li>
+          </ul>
+        </div>
+        <aside class="quote-card">
+          <p>“Our mission is to turn everyday gifts into keepsakes people actually remember.”</p>
+          <strong>— RScrafts&more Team</strong>
+        </aside>
+      </div>
+    </section>
+
+    <section class="section" id="about">
+      <div class="container two-col">
+        <div>
+          <h2>About Us</h2>
+          <p>
+            Based in Middle River, Maryland, RScrafts&more started as a passion for handmade creativity and grew into a local favorite for thoughtful gifts and custom pieces.
+            From everyday essentials to celebration-ready sets, we combine artistry and practicality for products that feel personal.
+          </p>
+        </div>
+        <div>
+          <h3>Store Details</h3>
+          <ul class="details">
+            <li><strong>Address:</strong> 1133 Orems Rd, Middle River, MD 21220</li>
+            <li><strong>Phone:</strong> (410) 446-5966</li>
+            <li><strong>Hours:</strong> Open 24 hours (per listing)</li>
+            <li><strong>Category:</strong> Craft Store</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="section alt" id="faq">
+      <div class="container">
+        <h2>Frequently Asked Questions</h2>
+        <details><summary>How long do custom orders take?</summary><p>Most custom items ship within 3–7 business days after design approval.</p></details>
+        <details><summary>Do you offer bulk/event orders?</summary><p>Yes. We support weddings, birthdays, and corporate gifting with custom pricing.</p></details>
+        <details><summary>Can I return personalized items?</summary><p>Personalized products are final sale unless there is a production defect.</p></details>
+        <details><summary>Do you offer local pickup?</summary><p>Yes, local pickup can be arranged in Middle River, MD after checkout.</p></details>
+      </div>
+    </section>
+  </main>
+
+  <aside class="cart" id="cart">
+    <div class="cart-head">
+      <h3>Your Cart</h3>
+      <button id="closeCart">✕</button>
+    </div>
+    <div id="cartItems"></div>
+    <div class="cart-foot">
+      <p>Subtotal: <strong id="subtotal">$0.00</strong></p>
+      <button class="btn primary full">Checkout</button>
+      <small>Secure checkout • Cards, PayPal, Apple Pay</small>
+    </div>
+  </aside>
+
+  <footer id="contact">
+    <div class="container footer-grid">
+      <div>
+        <h4>RScrafts&more</h4>
+        <p>Handmade gifts, custom décor, and seasonal drops from Middle River, MD.</p>
+      </div>
+      <div>
+        <h5>Contact</h5>
+        <p>📍 1133 Orems Rd, Middle River, MD 21220<br>📞 (410) 446-5966</p>
+      </div>
+      <div>
+        <h5>Policies</h5>
+        <p>Shipping: 2–5 business days<br>Returns: 14 days (non-custom)<br>Custom items: final sale</p>
+      </div>
+    </div>
+    <p class="copyright">© <span id="year"></span> RScrafts&more. All rights reserved.</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
