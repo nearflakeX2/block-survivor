@@ -1,0 +1,131 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Epic Kutz Barbershop | Owings Mills, MD</title>
+  <meta name="description" content="Premium fades, beard trims, and modern cuts in Owings Mills. Book with Epic Kutz Barbershop today." />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;700;800&family=Bebas+Neue&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="container nav">
+      <a class="logo" href="#home"><span>EK</span><strong>Epic Kutz</strong></a>
+      <nav>
+        <a href="#services">Services</a>
+        <a href="#barbers">Barbers</a>
+        <a href="#gallery">Gallery</a>
+        <a href="#reviews">Reviews</a>
+        <a href="#contact">Contact</a>
+      </nav>
+      <a class="btn" href="#book">Book Now</a>
+    </div>
+  </header>
+
+  <main id="home">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <p class="tag">Owings Mills • 4.5★ Local Favorite</p>
+          <h1>Sharp cuts. Clean fades. Respectful service.</h1>
+          <p>Epic Kutz delivers modern barbering with classic consistency. Walk out confident every time.</p>
+          <div class="cta">
+            <a class="btn" href="#book">Book Appointment</a>
+            <a class="btn ghost" href="tel:+14437625955">Call (443) 762-5955</a>
+          </div>
+          <ul>
+            <li>Precision fades & tapers</li>
+            <li>Beard lineups & hot towel detail</li>
+            <li>Kids cuts & professional styling</li>
+          </ul>
+        </div>
+        <aside class="panel">
+          <h3>Location</h3>
+          <p>9616 Reisterstown Rd Suite 103<br>Owings Mills, MD 21117</p>
+          <p><strong>Hours:</strong> Open · Closes 7 PM</p>
+          <a class="btn block" href="#book">Reserve a Time</a>
+        </aside>
+      </div>
+    </section>
+
+    <section id="services" class="section">
+      <div class="container">
+        <h2>Services</h2>
+        <div class="cards" id="servicesGrid"></div>
+      </div>
+    </section>
+
+    <section id="barbers" class="section alt">
+      <div class="container split">
+        <div>
+          <h2>Barber Team</h2>
+          <p>Our team blends style trends with technical skill so every client leaves looking their best.</p>
+          <p>Whether you want a skin fade, shape-up, or a full restyle, we tailor the cut to your head shape and lifestyle.</p>
+        </div>
+        <div class="stats">
+          <article><strong>4.5★</strong><span>Google Rating</span></article>
+          <article><strong>4+</strong><span>Public Reviews</span></article>
+          <article><strong>7d</strong><span>Weekly Availability</span></article>
+        </div>
+      </div>
+    </section>
+
+    <section id="gallery" class="section">
+      <div class="container">
+        <h2>Style Gallery</h2>
+        <div class="gallery">
+          <div>💈 Fade + Beard</div>
+          <div>✂️ Classic Taper</div>
+          <div>🧒 Kids Cut</div>
+          <div>🧔 Premium Beard Sculpt</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="reviews" class="section alt">
+      <div class="container">
+        <h2>Client Feedback</h2>
+        <div class="reviews">
+          <blockquote>“Received perfect haircut within a timely manner.”</blockquote>
+          <blockquote>“Great customer service and renovated very nicely.”</blockquote>
+          <blockquote>“Cool hair cuts and popular shape-up.”</blockquote>
+        </div>
+      </div>
+    </section>
+
+    <section id="book" class="section">
+      <div class="container">
+        <h2>Quick Booking Request</h2>
+        <form id="bookingForm">
+          <input required name="name" placeholder="Your name" />
+          <input required name="phone" placeholder="Phone number" />
+          <select name="service" id="serviceSelect"></select>
+          <input type="date" name="date" required />
+          <textarea name="notes" rows="4" placeholder="Style preference, barber request, etc."></textarea>
+          <button class="btn" type="submit">Send Request</button>
+        </form>
+        <p id="msg"></p>
+      </div>
+    </section>
+  </main>
+
+  <footer id="contact">
+    <div class="container foot">
+      <div>
+        <h4>Epic Kutz Barbershop</h4>
+        <p>9616 Reisterstown Rd Suite 103, Owings Mills, MD 21117</p>
+      </div>
+      <div>
+        <p>📞 (443) 762-5955</p>
+        <p>Book online available via Google listing</p>
+      </div>
+    </div>
+    <p class="copy">© <span id="year"></span> Epic Kutz Barbershop</p>
+  </footer>
+
+  <script src="app.js"></script>
+</body>
+</html>
