@@ -158,13 +158,44 @@ class SurvivorGame:
             speed = ENEMY_BASE_SPEED + min(2.5, self.wave * 0.11) + random.random() * 0.6
             size = ENEMY_SIZE + random.randint(-4, 5)
 
+            # Enemy design tiers get meaner as waves increase
+            if self.wave < 4:
+                etype = "grunt"
+                color, outline = "#d94f4f", "#ffb3b3"
+                shape = "square"
+            elif self.wave < 8:
+                etype = "brute"
+                hp += 18
+                size += 6
+                speed *= 0.86
+                color, outline = "#b73a7c", "#f4b3db"
+                shape = "diamond"
+            elif self.wave < 12:
+                etype = "runner"
+                hp -= 8
+                size -= 3
+                speed *= 1.42
+                color, outline = "#f08a24", "#ffd4a3"
+                shape = "triangle"
+            else:
+                etype = "elite"
+                hp += 32
+                size += 3
+                speed *= 1.2
+                color, outline = "#7a2be2", "#d7b4ff"
+                shape = "hex"
+
             self.enemies.append({
                 "x": x,
                 "y": y,
                 "hp": hp,
+                "max_hp": hp,
                 "speed": speed,
-                "size": size,
-                "color": random.choice(["#d94f4f", "#bf3d3d", "#f06666"]),
+                "size": max(12, size),
+                "color": color,
+                "outline": outline,
+                "type": etype,
+                "shape": shape,
             })
 
             # speed up over time
@@ -355,12 +386,49 @@ class SurvivorGame:
             r = b["r"]
             self.canvas.create_oval(b["x"] - r, b["y"] - r, b["x"] + r, b["y"] + r, fill="#ffd84d", outline="")
 
-        # enemies (blocks)
+        # enemies (design changes with difficulty tiers)
         for e in self.enemies:
             s = e["size"]
-            x1, y1 = e["x"] - s / 2, e["y"] - s / 2
-            x2, y2 = e["x"] + s / 2, e["y"] + s / 2
-            self.canvas.create_rectangle(x1, y1, x2, y2, fill=e["color"], outline="#ffb3b3")
+            x, y = e["x"], e["y"]
+            x1, y1 = x - s / 2, y - s / 2
+            x2, y2 = x + s / 2, y + s / 2
+
+            if e["shape"] == "square":
+                self.canvas.create_rectangle(x1, y1, x2, y2, fill=e["color"], outline=e["outline"], width=2)
+            elif e["shape"] == "diamond":
+                self.canvas.create_polygon(
+                    x, y1, x2, y, x, y2, x1, y,
+                    fill=e["color"], outline=e["outline"], width=2
+                )
+            elif e["shape"] == "triangle":
+                self.canvas.create_polygon(
+                    x, y1, x2, y2, x1, y2,
+                    fill=e["color"], outline=e["outline"], width=2
+                )
+            else:  # hex
+                h = s * 0.5
+                self.canvas.create_polygon(
+                    x - h * 0.9, y - h,
+                    x + h * 0.9, y - h,
+                    x + h * 1.4, y,
+                    x + h * 0.9, y + h,
+                    x - h * 0.9, y + h,
+                    x - h * 1.4, y,
+                    fill=e["color"], outline=e["outline"], width=2
+                )
+
+            # mini HP bar
+            hp_ratio = max(0, e["hp"]) / max(1, e.get("max_hp", e["hp"]))
+            bar_w = max(14, s)
+            self.canvas.create_rectangle(x - bar_w / 2, y - s / 2 - 8, x + bar_w / 2, y - s / 2 - 4, fill="#2a2a2a", outline="")
+            self.canvas.create_rectangle(
+                x - bar_w / 2,
+                y - s / 2 - 8,
+                x - bar_w / 2 + bar_w * hp_ratio,
+                y - s / 2 - 4,
+                fill="#67d67a",
+                outline="",
+            )
 
         # player (block)
         half = PLAYER_SIZE / 2
@@ -387,6 +455,14 @@ class SurvivorGame:
         )
         self.canvas.create_text(12, 10, text=hud, fill="#f0f0f0", font=("Consolas", 14, "bold"), anchor="nw")
         self.canvas.create_text(12, 34, text=buffs, fill="#d8d8d8", font=("Consolas", 11), anchor="nw")
+        self.canvas.create_text(
+            12,
+            52,
+            text="Enemy tiers: Grunt(1-3) Brute(4-7) Runner(8-11) Elite(12+)",
+            fill="#bcbcbc",
+            font=("Consolas", 10),
+            anchor="nw",
+        )
         self.canvas.create_text(WIDTH // 2, HEIGHT - 12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
 
     # ---------- Main loop ----------
