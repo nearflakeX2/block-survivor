@@ -12,7 +12,7 @@ PLAYER_SPEED = 4.4
 PLAYER_MAX_HP = 100
 
 # --- Gun ---
-SHOOT_COOLDOWN_FRAMES = 10
+BASE_SHOOT_COOLDOWN = 10
 BULLET_SPEED = 9.0
 BULLET_DAMAGE = 24
 BULLET_RADIUS = 4
@@ -22,6 +22,11 @@ ENEMY_SIZE = 24
 ENEMY_BASE_SPEED = 1.6
 ENEMY_BASE_HP = 30
 SPAWN_BASE_INTERVAL = 900  # ms
+
+# --- Powerups ---
+POWERUP_SIZE = 16
+POWERUP_DROP_CHANCE = 0.18
+POWERUP_LIFETIME = 560  # frames (~9 sec)
 
 
 class SurvivorGame:
@@ -54,6 +59,13 @@ class SurvivorGame:
         # Entities
         self.enemies = []
         self.bullets = []
+        self.powerups = []
+
+        # Timed buffs (frames)
+        self.rapid_fire_timer = 0
+        self.speed_timer = 0
+        self.shield_timer = 0
+        self.multishot_timer = 0
 
         # Combat timing
         self.shoot_cd = 0
@@ -90,20 +102,36 @@ class SurvivorGame:
         self.py = HEIGHT // 2
         self.enemies.clear()
         self.bullets.clear()
+        self.powerups.clear()
         self.shoot_cd = 0
         self.spawn_interval = SPAWN_BASE_INTERVAL
+        self.rapid_fire_timer = 0
+        self.speed_timer = 0
+        self.shield_timer = 0
+        self.multishot_timer = 0
         self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | Press R to restart"
 
+    def current_player_speed(self):
+        if self.speed_timer > 0:
+            return PLAYER_SPEED * 1.5
+        return PLAYER_SPEED
+
+    def current_shoot_cooldown(self):
+        if self.rapid_fire_timer > 0:
+            return max(3, BASE_SHOOT_COOLDOWN // 2)
+        return BASE_SHOOT_COOLDOWN
+
     def move_player(self):
+        speed = self.current_player_speed()
         dx = dy = 0.0
         if "a" in self.keys or "left" in self.keys:
-            dx -= PLAYER_SPEED
+            dx -= speed
         if "d" in self.keys or "right" in self.keys:
-            dx += PLAYER_SPEED
+            dx += speed
         if "w" in self.keys or "up" in self.keys:
-            dy -= PLAYER_SPEED
+            dy -= speed
         if "s" in self.keys or "down" in self.keys:
-            dy += PLAYER_SPEED
+            dy += speed
 
         if dx and dy:
             dx *= 0.7071
@@ -149,6 +177,11 @@ class SurvivorGame:
             return None
         return min(self.enemies, key=lambda e: (e["x"] - self.px) ** 2 + (e["y"] - self.py) ** 2)
 
+    def spawn_bullet(self, angle):
+        vx = math.cos(angle) * BULLET_SPEED
+        vy = math.sin(angle) * BULLET_SPEED
+        self.bullets.append({"x": self.px, "y": self.py, "vx": vx, "vy": vy, "r": BULLET_RADIUS})
+
     def auto_shoot(self):
         if self.shoot_cd > 0 or not self.running:
             return
@@ -159,12 +192,77 @@ class SurvivorGame:
 
         dx = target["x"] - self.px
         dy = target["y"] - self.py
-        dist = math.hypot(dx, dy) + 1e-6
-        vx = (dx / dist) * BULLET_SPEED
-        vy = (dy / dist) * BULLET_SPEED
+        base_angle = math.atan2(dy, dx)
 
-        self.bullets.append({"x": self.px, "y": self.py, "vx": vx, "vy": vy, "r": BULLET_RADIUS})
-        self.shoot_cd = SHOOT_COOLDOWN_FRAMES
+        # multishot powerup
+        if self.multishot_timer > 0:
+            spread = 0.18
+            for a in (base_angle - spread, base_angle, base_angle + spread):
+                self.spawn_bullet(a)
+        else:
+            self.spawn_bullet(base_angle)
+
+        self.shoot_cd = self.current_shoot_cooldown()
+
+    def maybe_drop_powerup(self, x, y):
+        if random.random() > POWERUP_DROP_CHANCE:
+            return
+
+        ptype = random.choices(
+            ["heal", "rapid", "speed", "shield", "multi"],
+            weights=[22, 20, 20, 18, 20],
+            k=1,
+        )[0]
+
+        color = {
+            "heal": "#4de284",   # green
+            "rapid": "#ffe066",  # yellow
+            "speed": "#66d9ff",  # cyan
+            "shield": "#b388ff", # purple
+            "multi": "#ff9ecf",  # pink
+        }[ptype]
+
+        self.powerups.append({
+            "x": x,
+            "y": y,
+            "type": ptype,
+            "ttl": POWERUP_LIFETIME,
+            "color": color,
+        })
+
+    def collect_powerups(self):
+        remaining = []
+        player_r = PLAYER_SIZE / 2
+
+        for p in self.powerups:
+            p["ttl"] -= 1
+            if p["ttl"] <= 0:
+                continue
+
+            if math.hypot(p["x"] - self.px, p["y"] - self.py) <= (player_r + POWERUP_SIZE / 2):
+                self.apply_powerup(p["type"])
+                continue
+
+            remaining.append(p)
+
+        self.powerups = remaining
+
+    def apply_powerup(self, ptype):
+        if ptype == "heal":
+            self.hp = min(PLAYER_MAX_HP, self.hp + 28)
+            self.banner = "+HEAL"
+        elif ptype == "rapid":
+            self.rapid_fire_timer = max(self.rapid_fire_timer, 420)
+            self.banner = "RAPID FIRE!"
+        elif ptype == "speed":
+            self.speed_timer = max(self.speed_timer, 420)
+            self.banner = "SPEED BOOST!"
+        elif ptype == "shield":
+            self.shield_timer = max(self.shield_timer, 420)
+            self.banner = "SHIELD ON!"
+        elif ptype == "multi":
+            self.multishot_timer = max(self.multishot_timer, 420)
+            self.banner = "TRIPLE SHOT!"
 
     def update_bullets(self):
         alive_bullets = []
@@ -202,15 +300,19 @@ class SurvivorGame:
             e["x"] += (dx / dist) * e["speed"]
             e["y"] += (dy / dist) * e["speed"]
 
-            # contact damage
+            # contact damage (reduced with shield)
             if dist <= (e["size"] / 2 + player_half):
-                self.hp -= 0.45
+                dmg = 0.45
+                if self.shield_timer > 0:
+                    dmg *= 0.35
+                self.hp -= dmg
 
         survivors = []
         for e in self.enemies:
             if e["hp"] <= 0:
                 self.kills += 1
                 self.score += 10
+                self.maybe_drop_powerup(e["x"], e["y"])
             else:
                 survivors.append(e)
         self.enemies = survivors
@@ -225,6 +327,12 @@ class SurvivorGame:
         # increase wave every ~15 kills
         self.wave = 1 + self.kills // 15
 
+    def tick_buffs(self):
+        self.rapid_fire_timer = max(0, self.rapid_fire_timer - 1)
+        self.speed_timer = max(0, self.speed_timer - 1)
+        self.shield_timer = max(0, self.shield_timer - 1)
+        self.multishot_timer = max(0, self.multishot_timer - 1)
+
     # ---------- Rendering ----------
     def draw(self):
         self.canvas.delete("all")
@@ -234,6 +342,13 @@ class SurvivorGame:
             self.canvas.create_line(x, 0, x, HEIGHT, fill="#191919")
         for y in range(0, HEIGHT, 40):
             self.canvas.create_line(0, y, WIDTH, y, fill="#191919")
+
+        # powerups
+        for p in self.powerups:
+            s = POWERUP_SIZE
+            x1, y1 = p["x"] - s / 2, p["y"] - s / 2
+            x2, y2 = p["x"] + s / 2, p["y"] + s / 2
+            self.canvas.create_oval(x1, y1, x2, y2, fill=p["color"], outline="#ffffff")
 
         # bullets
         for b in self.bullets:
@@ -249,9 +364,10 @@ class SurvivorGame:
 
         # player (block)
         half = PLAYER_SIZE / 2
+        player_fill = "#4aa8ff" if self.shield_timer == 0 else "#7b8cff"
         self.canvas.create_rectangle(
             self.px - half, self.py - half, self.px + half, self.py + half,
-            fill="#4aa8ff", outline="#cfe8ff", width=2
+            fill=player_fill, outline="#cfe8ff", width=2
         )
 
         # gun line toward nearest enemy
@@ -265,7 +381,12 @@ class SurvivorGame:
 
         # HUD
         hud = f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}"
+        buffs = (
+            f"Buffs: RF {self.rapid_fire_timer//60}s | SPD {self.speed_timer//60}s | "
+            f"SHD {self.shield_timer//60}s | TRI {self.multishot_timer//60}s"
+        )
         self.canvas.create_text(12, 10, text=hud, fill="#f0f0f0", font=("Consolas", 14, "bold"), anchor="nw")
+        self.canvas.create_text(12, 34, text=buffs, fill="#d8d8d8", font=("Consolas", 11), anchor="nw")
         self.canvas.create_text(WIDTH // 2, HEIGHT - 12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
 
     # ---------- Main loop ----------
@@ -277,7 +398,9 @@ class SurvivorGame:
             self.auto_shoot()
             self.update_bullets()
             self.update_enemies()
+            self.collect_powerups()
             self.update_progression()
+            self.tick_buffs()
 
         if self.shoot_cd > 0:
             self.shoot_cd -= 1
