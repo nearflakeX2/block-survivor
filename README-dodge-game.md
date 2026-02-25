@@ -18,23 +18,26 @@ Timed stackable drops:
 - **Triple Shot** (pink): fire 3 bullets
 
 Permanent drops (do not run out):
-- **Damage Core**: +bullet damage permanently
-- **Max HP Core**: +max HP permanently
-- **Regen Core**: passive regen permanently
-- **Lifesteal Core**: heal when bullets hit
-- **Bullet Speed Core**: faster bullets permanently
-- **Magnet Core**: pulls nearby drops to you
+- **Damage Core**
+- **Max HP Core**
+- **Regen Core**
+- **Lifesteal Core**
+- **Bullet Speed Core**
+- **Magnet Core**
 
 ## Shop + Powers
 
 - Press **P** to open/close shop
-- Buy/equip powers with **1 / 2 / 3**
+- Buy/equip powers with **1..6**
 - Press **Q** in combat for equipped power
 
 Powers:
-- **Dark Aura**: toggle ON/OFF, damages nearby enemies continuously (stays on)
-- **Orbit Blades**: toggle ON/OFF, spinning damage around you (stays on)
-- **Clone Rush**: temporary clone attack (this one expires)
+- **Dark Aura** (toggle)
+- **Orbit Blades** (toggle)
+- **Clone Rush** (temporary)
+- **Blood Nova** (big AoE burst)
+- **Auto Turret** (deploy turret)
+- **Time Freeze** (slow enemies hard)
 
 ## Run
 

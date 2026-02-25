@@ -106,11 +106,20 @@ class SurvivorGame:
         # powers
         self.power_cd = 0
         self.equipped_power = "dark"
-        self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
+        self.unlocked_powers = {
+            "dark": True,
+            "orbit": False,
+            "clone": False,
+            "nova": False,
+            "turret": False,
+            "freeze": False,
+        }
         self.orbit_timer = 0
         self.orbit_angle = 0.0
         self.dark_aura_on = False
         self.orbit_aura_on = False
+        self.freeze_timer = 0
+        self.turrets = []
         self.clones = []
 
         # facing direction (for spear + dash aim)
@@ -147,6 +156,12 @@ class SurvivorGame:
                 self.buy_or_equip_power("orbit")
             elif key == "3":
                 self.buy_or_equip_power("clone")
+            elif key == "4":
+                self.buy_or_equip_power("nova")
+            elif key == "5":
+                self.buy_or_equip_power("turret")
+            elif key == "6":
+                self.buy_or_equip_power("freeze")
             return
 
         if key == "space" and self.running:
@@ -180,11 +195,20 @@ class SurvivorGame:
         self.dash_vy = 0.0
         self.power_cd = 0
         self.equipped_power = "dark"
-        self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
+        self.unlocked_powers = {
+            "dark": True,
+            "orbit": False,
+            "clone": False,
+            "nova": False,
+            "turret": False,
+            "freeze": False,
+        }
         self.orbit_timer = 0
         self.orbit_angle = 0.0
         self.dark_aura_on = False
         self.orbit_aura_on = False
+        self.freeze_timer = 0
+        self.turrets.clear()
         self.clones.clear()
         self.shop_open = False
         self.face_x = 1.0
@@ -297,7 +321,7 @@ class SurvivorGame:
         self.dash_timer -= 1
 
     def power_cost(self, ptype):
-        idx = {"dark": 1, "orbit": 2, "clone": 3}[ptype]
+        idx = {"dark": 1, "orbit": 2, "clone": 3, "nova": 4, "turret": 5, "freeze": 6}[ptype]
         return POWER_BASE_COST * idx
 
     def buy_or_equip_power(self, ptype):
@@ -334,13 +358,41 @@ class SurvivorGame:
             self.banner = "ORBIT BLADES ON" if self.orbit_aura_on else "ORBIT BLADES OFF"
             return
 
-        # Clone remains a cast power with cooldown
+        # Cast powers with cooldown
         if p == "clone":
             if self.power_cd > 0:
                 return
             self.clones.append({"x": self.px, "y": self.py, "ttl": 260})
             self.banner = "CLONE SENT OUT!"
             self.power_cd = POWER_COOLDOWN
+            return
+
+        if p == "nova":
+            if self.power_cd > 0:
+                return
+            for e in self.enemies:
+                dist = math.hypot(e["x"] - self.px, e["y"] - self.py)
+                if dist <= 180:
+                    e["hp"] -= 85
+            self.banner = "BLOOD NOVA!"
+            self.power_cd = POWER_COOLDOWN + 40
+            return
+
+        if p == "turret":
+            if self.power_cd > 0:
+                return
+            self.turrets.append({"x": self.px, "y": self.py, "ttl": 360, "cd": 0})
+            self.banner = "TURRET DEPLOYED!"
+            self.power_cd = POWER_COOLDOWN
+            return
+
+        if p == "freeze":
+            if self.power_cd > 0:
+                return
+            self.freeze_timer = 180
+            self.banner = "TIME FREEZE!"
+            self.power_cd = POWER_COOLDOWN + 20
+            return
 
     def update_powers(self):
         # persistent dark aura
@@ -385,8 +437,29 @@ class SurvivorGame:
                 if d <= target["size"] / 2 + 10:
                     target["hp"] -= 16
             alive_clones.append(c)
-
         self.clones = alive_clones
+
+        # placed turrets auto-fire nearest enemy
+        alive_turrets = []
+        for t in self.turrets:
+            t["ttl"] -= 1
+            t["cd"] = max(0, t["cd"] - 1)
+            if t["ttl"] <= 0:
+                continue
+
+            if self.enemies and t["cd"] == 0:
+                target = min(self.enemies, key=lambda e: (e["x"] - t["x"]) ** 2 + (e["y"] - t["y"]) ** 2)
+                dx = target["x"] - t["x"]
+                dy = target["y"] - t["y"]
+                d = math.hypot(dx, dy)
+                if d <= 260:
+                    target["hp"] -= 28
+                    t["cd"] = 16
+            alive_turrets.append(t)
+        self.turrets = alive_turrets
+
+        if self.freeze_timer > 0:
+            self.freeze_timer -= 1
 
     def spawn_enemy(self):
         if self.running and not self.shop_open:
@@ -626,8 +699,9 @@ class SurvivorGame:
             dx = self.px - e["x"]
             dy = self.py - e["y"]
             dist = math.hypot(dx, dy) + 1e-6
-            e["x"] += (dx / dist) * e["speed"]
-            e["y"] += (dy / dist) * e["speed"]
+            freeze_mult = 0.2 if self.freeze_timer > 0 else 1.0
+            e["x"] += (dx / dist) * e["speed"] * freeze_mult
+            e["y"] += (dy / dist) * e["speed"] * freeze_mult
 
             # contact damage (reduced with shield)
             if dist <= (e["size"] / 2 + player_half):
@@ -701,6 +775,12 @@ class SurvivorGame:
         for c in self.clones:
             s = 14
             self.canvas.create_rectangle(c["x"] - s/2, c["y"] - s/2, c["x"] + s/2, c["y"] + s/2, fill="#74f0ff", outline="#d8fbff")
+
+        # turrets
+        for t in self.turrets:
+            s = 16
+            self.canvas.create_rectangle(t["x"] - s/2, t["y"] - s/2, t["x"] + s/2, t["y"] + s/2, fill="#ffdca8", outline="#fff3dd", width=2)
+            self.canvas.create_oval(t["x"]-4, t["y"]-4, t["x"]+4, t["y"]+4, fill="#7a4a00", outline="")
 
         # enemies (design changes with difficulty tiers)
         for e in self.enemies:
@@ -783,7 +863,7 @@ class SurvivorGame:
                 self.canvas.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#c9a3ff", outline="#f0e0ff")
 
         # HUD
-        if self.equipped_power == "clone":
+        if self.equipped_power in ("clone", "nova", "turret", "freeze"):
             power_status = f"{self.power_cd//60}s" if self.power_cd > 0 else "READY"
         elif self.equipped_power == "dark":
             power_status = "ON" if self.dark_aura_on else "OFF"
@@ -826,11 +906,14 @@ class SurvivorGame:
             self.canvas.create_rectangle(170, 140, WIDTH - 170, HEIGHT - 140, fill="#0f0f15", outline="#9b8cff", width=3)
             shop_text = (
                 "SHOP (Press P to close)\n\n"
-                f"[1] DARK BURST  ({'OWNED' if self.unlocked_powers['dark'] else str(self.power_cost('dark')) + ' coins'})\n"
+                f"[1] DARK AURA    ({'OWNED' if self.unlocked_powers['dark'] else str(self.power_cost('dark')) + ' coins'})\n"
                 f"[2] ORBIT BLADES ({'OWNED' if self.unlocked_powers['orbit'] else str(self.power_cost('orbit')) + ' coins'})\n"
-                f"[3] CLONE RUSH   ({'OWNED' if self.unlocked_powers['clone'] else str(self.power_cost('clone')) + ' coins'})\n\n"
-                "Press 1/2/3 to buy/equip.\n"
-                "In battle press Q. Dark/Orbit toggle ON/OFF, Clone casts."
+                f"[3] CLONE RUSH   ({'OWNED' if self.unlocked_powers['clone'] else str(self.power_cost('clone')) + ' coins'})\n"
+                f"[4] BLOOD NOVA   ({'OWNED' if self.unlocked_powers['nova'] else str(self.power_cost('nova')) + ' coins'})\n"
+                f"[5] AUTO TURRET  ({'OWNED' if self.unlocked_powers['turret'] else str(self.power_cost('turret')) + ' coins'})\n"
+                f"[6] TIME FREEZE  ({'OWNED' if self.unlocked_powers['freeze'] else str(self.power_cost('freeze')) + ' coins'})\n\n"
+                "Press 1-6 to buy/equip.\n"
+                "In battle press Q to use/toggle equipped power."
             )
             self.canvas.create_text(WIDTH // 2, HEIGHT // 2, text=shop_text, fill="#efe8ff", font=("Consolas", 16, "bold"), justify="center")
 
