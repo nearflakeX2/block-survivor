@@ -1,6 +1,6 @@
-# Neon Dodge (Python)
+# Gladium (Python)
 
-Tiny arcade game built with Python + Tkinter.
+Arena-themed dodge game built with Python + Tkinter.
 
 ## Run
 
@@ -11,4 +11,10 @@ python dodge_game.py
 ## Controls
 
 - Move: `WASD` or Arrow keys
-- Restart after game over: `R`
+- Restart after defeat: `R`
+
+## Features
+
+- Gladiator arena visuals
+- Wave-based enemy scaling
+- Combo scoring system
