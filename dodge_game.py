@@ -34,6 +34,11 @@ POWERUP_SIZE = 16
 POWERUP_DROP_CHANCE = 0.18
 POWERUP_LIFETIME = 560  # frames (~9 sec)
 
+# Permanent powerup stack caps
+MAX_DAMAGE_STACKS = 8
+MAX_HEALTH_STACKS = 8
+MAX_REGEN_STACKS = 8
+
 # --- Shop / powers ---
 POWER_BASE_COST = 90
 POWER_COOLDOWN = 150  # frames
@@ -79,6 +84,11 @@ class SurvivorGame:
         self.shield_timer = 0
         self.multishot_timer = 0
 
+        # Permanent stacked upgrades from drops
+        self.damage_stack = 0
+        self.health_stack = 0
+        self.regen_stack = 0
+
         # Combat timing
         self.shoot_cd = 0
         self.dash_cd = 0
@@ -92,6 +102,8 @@ class SurvivorGame:
         self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
         self.orbit_timer = 0
         self.orbit_angle = 0.0
+        self.dark_aura_on = False
+        self.orbit_aura_on = False
         self.clones = []
 
         # facing direction (for spear + dash aim)
@@ -163,6 +175,8 @@ class SurvivorGame:
         self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
         self.orbit_timer = 0
         self.orbit_angle = 0.0
+        self.dark_aura_on = False
+        self.orbit_aura_on = False
         self.clones.clear()
         self.shop_open = False
         self.face_x = 1.0
@@ -172,7 +186,13 @@ class SurvivorGame:
         self.speed_timer = 0
         self.shield_timer = 0
         self.multishot_timer = 0
+        self.damage_stack = 0
+        self.health_stack = 0
+        self.regen_stack = 0
         self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
+
+    def max_hp(self):
+        return PLAYER_MAX_HP + self.health_stack * 12
 
     def current_player_speed(self):
         if self.speed_timer > 0:
@@ -285,35 +305,43 @@ class SurvivorGame:
             self.banner = f"Need {cost} coins for {ptype.upper()}"
 
     def use_power(self):
-        if self.power_cd > 0 or self.shop_open:
+        if self.shop_open:
             return
 
         p = self.equipped_power
         if not self.unlocked_powers.get(p, False):
             return
 
+        # Dark + Orbit are persistent toggles now (don't run out)
         if p == "dark":
-            radius = 90
-            dmg = 40
-            for e in self.enemies:
-                if math.hypot(e["x"] - self.px, e["y"] - self.py) <= radius:
-                    e["hp"] -= dmg
-            self.banner = "DARK BURST!"
+            self.dark_aura_on = not self.dark_aura_on
+            self.banner = "DARK AURA ON" if self.dark_aura_on else "DARK AURA OFF"
+            return
 
-        elif p == "orbit":
-            self.orbit_timer = 300
-            self.banner = "ORBIT BLADES!"
+        if p == "orbit":
+            self.orbit_aura_on = not self.orbit_aura_on
+            self.banner = "ORBIT BLADES ON" if self.orbit_aura_on else "ORBIT BLADES OFF"
+            return
 
-        elif p == "clone":
+        # Clone remains a cast power with cooldown
+        if p == "clone":
+            if self.power_cd > 0:
+                return
             self.clones.append({"x": self.px, "y": self.py, "ttl": 260})
             self.banner = "CLONE SENT OUT!"
-
-        self.power_cd = POWER_COOLDOWN
+            self.power_cd = POWER_COOLDOWN
 
     def update_powers(self):
-        # orbiting damage field
-        if self.orbit_timer > 0:
-            self.orbit_timer -= 1
+        # persistent dark aura
+        if self.dark_aura_on:
+            radius = 88
+            damage = 1.6
+            for e in self.enemies:
+                if math.hypot(e["x"] - self.px, e["y"] - self.py) <= (radius + e["size"] / 2):
+                    e["hp"] -= damage
+
+        # persistent orbit blades
+        if self.orbit_aura_on:
             self.orbit_angle += 0.22
             blade_r = 46
             dmg_r = 12
@@ -326,7 +354,7 @@ class SurvivorGame:
                     if math.hypot(e["x"] - bx, e["y"] - by) <= (e["size"] / 2 + dmg_r):
                         e["hp"] -= damage
 
-        # clones chase nearest enemy and deal contact damage
+        # clones chase nearest enemy and deal contact damage (temporary)
         alive_clones = []
         for c in self.clones:
             c["ttl"] -= 1
@@ -448,8 +476,8 @@ class SurvivorGame:
             return
 
         ptype = random.choices(
-            ["heal", "rapid", "speed", "shield", "multi"],
-            weights=[22, 20, 20, 18, 20],
+            ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen"],
+            weights=[18, 14, 14, 12, 12, 12, 10, 8],
             k=1,
         )[0]
 
@@ -459,6 +487,9 @@ class SurvivorGame:
             "speed": "#66d9ff",  # cyan
             "shield": "#b388ff", # purple
             "multi": "#ff9ecf",  # pink
+            "damage": "#ff784f", # orange-red
+            "maxhp": "#7dffb2",  # mint
+            "regen": "#9cf2ff",  # pale cyan
         }[ptype]
 
         self.powerups.append({
@@ -488,7 +519,7 @@ class SurvivorGame:
 
     def apply_powerup(self, ptype):
         if ptype == "heal":
-            self.hp = min(PLAYER_MAX_HP, self.hp + 28)
+            self.hp = min(self.max_hp(), self.hp + 28)
             self.banner = "+HEAL"
         elif ptype == "rapid":
             self.rapid_fire_timer = min(1800, self.rapid_fire_timer + 420)
@@ -502,6 +533,17 @@ class SurvivorGame:
         elif ptype == "multi":
             self.multishot_timer = min(1800, self.multishot_timer + 420)
             self.banner = "TRIPLE SHOT STACKED!"
+        elif ptype == "damage":
+            self.damage_stack = min(MAX_DAMAGE_STACKS, self.damage_stack + 1)
+            self.banner = f"PERM DAMAGE UP ({self.damage_stack})"
+        elif ptype == "maxhp":
+            if self.health_stack < MAX_HEALTH_STACKS:
+                self.health_stack += 1
+                self.hp += 12
+            self.banner = f"PERM MAX HP UP ({self.health_stack})"
+        elif ptype == "regen":
+            self.regen_stack = min(MAX_REGEN_STACKS, self.regen_stack + 1)
+            self.banner = f"PERM REGEN UP ({self.regen_stack})"
 
     def update_bullets(self):
         alive_bullets = []
@@ -518,7 +560,8 @@ class SurvivorGame:
             for e in self.enemies:
                 dist = math.hypot(e["x"] - b["x"], e["y"] - b["y"])
                 if dist <= (e["size"] / 2 + b["r"]):
-                    e["hp"] -= BULLET_DAMAGE
+                    bonus = self.damage_stack * 4
+                    e["hp"] -= (BULLET_DAMAGE + bonus)
                     hit = True
                     break
 
@@ -572,6 +615,10 @@ class SurvivorGame:
         self.speed_timer = max(0, self.speed_timer - 1)
         self.shield_timer = max(0, self.shield_timer - 1)
         self.multishot_timer = max(0, self.multishot_timer - 1)
+
+        # passive regen from permanent regen stacks
+        if self.regen_stack > 0 and self.running and self.frame_count % 30 == 0:
+            self.hp = min(self.max_hp(), self.hp + self.regen_stack)
 
     # ---------- Rendering ----------
     def draw(self):
@@ -668,7 +715,11 @@ class SurvivorGame:
         spear_color = "#f4f7ff" if self.dash_timer == 0 else "#fff07a"
         self.canvas.create_line(self.px, self.py, sx, sy, fill=spear_color, width=5)
 
-        if self.orbit_timer > 0:
+        if self.dark_aura_on:
+            rr = 88
+            self.canvas.create_oval(self.px - rr, self.py - rr, self.px + rr, self.py + rr, outline="#7d54ff", width=2)
+
+        if self.orbit_aura_on:
             blade_r = 46
             for i in range(3):
                 a = self.orbit_angle + i * (2 * math.pi / 3)
@@ -677,7 +728,12 @@ class SurvivorGame:
                 self.canvas.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#c9a3ff", outline="#f0e0ff")
 
         # HUD
-        power_status = f"{self.power_cd//60}s" if self.power_cd > 0 else "READY"
+        if self.equipped_power == "clone":
+            power_status = f"{self.power_cd//60}s" if self.power_cd > 0 else "READY"
+        elif self.equipped_power == "dark":
+            power_status = "ON" if self.dark_aura_on else "OFF"
+        else:
+            power_status = "ON" if self.orbit_aura_on else "OFF"
         hud = (
             f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}   "
             f"Coins: {self.coins}"
@@ -698,6 +754,14 @@ class SurvivorGame:
             font=("Consolas", 10),
             anchor="nw",
         )
+        self.canvas.create_text(
+            12,
+            68,
+            text=f"Perm: DMG+{self.damage_stack*4}  MAXHP+{self.health_stack*12}  REGEN+{self.regen_stack}/sec",
+            fill="#9fd4ff",
+            font=("Consolas", 10),
+            anchor="nw",
+        )
         self.canvas.create_text(WIDTH // 2, HEIGHT - 12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
 
         if self.shop_open:
@@ -708,7 +772,7 @@ class SurvivorGame:
                 f"[2] ORBIT BLADES ({'OWNED' if self.unlocked_powers['orbit'] else str(self.power_cost('orbit')) + ' coins'})\n"
                 f"[3] CLONE RUSH   ({'OWNED' if self.unlocked_powers['clone'] else str(self.power_cost('clone')) + ' coins'})\n\n"
                 "Press 1/2/3 to buy/equip.\n"
-                "In battle press Q to use equipped power."
+                "In battle press Q. Dark/Orbit toggle ON/OFF, Clone casts."
             )
             self.canvas.create_text(WIDTH // 2, HEIGHT // 2, text=shop_text, fill="#efe8ff", font=("Consolas", 16, "bold"), justify="center")
 
