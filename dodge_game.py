@@ -34,6 +34,10 @@ POWERUP_SIZE = 16
 POWERUP_DROP_CHANCE = 0.18
 POWERUP_LIFETIME = 560  # frames (~9 sec)
 
+# --- Shop / powers ---
+POWER_BASE_COST = 90
+POWER_COOLDOWN = 150  # frames
+
 
 class SurvivorGame:
     def __init__(self, root: tk.Tk):
@@ -52,10 +56,12 @@ class SurvivorGame:
         # Game state
         self.running = True
         self.game_over = False
+        self.shop_open = False
         self.score = 0
         self.kills = 0
         self.wave = 1
         self.frame_count = 0
+        self.coins = 0
 
         # Player position centered
         self.px = WIDTH // 2
@@ -80,12 +86,20 @@ class SurvivorGame:
         self.dash_vx = 0.0
         self.dash_vy = 0.0
 
+        # powers
+        self.power_cd = 0
+        self.equipped_power = "dark"
+        self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
+        self.orbit_timer = 0
+        self.orbit_angle = 0.0
+        self.clones = []
+
         # facing direction (for spear + dash aim)
         self.face_x = 1.0
         self.face_y = 0.0
 
         # UI message
-        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | SPACE dash+spear hit | Press R to restart"
+        self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
 
         # Spawn loop
         self.spawn_interval = SPAWN_BASE_INTERVAL
@@ -97,10 +111,29 @@ class SurvivorGame:
     def on_key_press(self, event):
         key = event.keysym.lower()
         self.keys.add(key)
+
         if key == "r" and self.game_over:
             self.restart()
+            return
+
+        if key == "p" and self.running:
+            self.shop_open = not self.shop_open
+            self.banner = "SHOP OPEN" if self.shop_open else "Back to fight"
+            return
+
+        if self.shop_open:
+            if key == "1":
+                self.buy_or_equip_power("dark")
+            elif key == "2":
+                self.buy_or_equip_power("orbit")
+            elif key == "3":
+                self.buy_or_equip_power("clone")
+            return
+
         if key == "space" and self.running:
             self.start_dash()
+        if key == "q" and self.running:
+            self.use_power()
 
     def on_key_release(self, event):
         self.keys.discard(event.keysym.lower())
@@ -113,6 +146,7 @@ class SurvivorGame:
         self.kills = 0
         self.wave = 1
         self.frame_count = 0
+        self.coins = 0
         self.hp = PLAYER_MAX_HP
         self.px = WIDTH // 2
         self.py = HEIGHT // 2
@@ -124,6 +158,13 @@ class SurvivorGame:
         self.dash_timer = 0
         self.dash_vx = 0.0
         self.dash_vy = 0.0
+        self.power_cd = 0
+        self.equipped_power = "dark"
+        self.unlocked_powers = {"dark": True, "orbit": False, "clone": False}
+        self.orbit_timer = 0
+        self.orbit_angle = 0.0
+        self.clones.clear()
+        self.shop_open = False
         self.face_x = 1.0
         self.face_y = 0.0
         self.spawn_interval = SPAWN_BASE_INTERVAL
@@ -131,7 +172,7 @@ class SurvivorGame:
         self.speed_timer = 0
         self.shield_timer = 0
         self.multishot_timer = 0
-        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | SPACE dash+spear hit | Press R to restart"
+        self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
 
     def current_player_speed(self):
         if self.speed_timer > 0:
@@ -224,8 +265,92 @@ class SurvivorGame:
 
         self.dash_timer -= 1
 
+    def power_cost(self, ptype):
+        idx = {"dark": 1, "orbit": 2, "clone": 3}[ptype]
+        return POWER_BASE_COST * idx
+
+    def buy_or_equip_power(self, ptype):
+        if self.unlocked_powers[ptype]:
+            self.equipped_power = ptype
+            self.banner = f"Equipped power: {ptype.upper()}"
+            return
+
+        cost = self.power_cost(ptype)
+        if self.coins >= cost:
+            self.coins -= cost
+            self.unlocked_powers[ptype] = True
+            self.equipped_power = ptype
+            self.banner = f"Unlocked {ptype.upper()}!"
+        else:
+            self.banner = f"Need {cost} coins for {ptype.upper()}"
+
+    def use_power(self):
+        if self.power_cd > 0 or self.shop_open:
+            return
+
+        p = self.equipped_power
+        if not self.unlocked_powers.get(p, False):
+            return
+
+        if p == "dark":
+            radius = 90
+            dmg = 40
+            for e in self.enemies:
+                if math.hypot(e["x"] - self.px, e["y"] - self.py) <= radius:
+                    e["hp"] -= dmg
+            self.banner = "DARK BURST!"
+
+        elif p == "orbit":
+            self.orbit_timer = 300
+            self.banner = "ORBIT BLADES!"
+
+        elif p == "clone":
+            self.clones.append({"x": self.px, "y": self.py, "ttl": 260})
+            self.banner = "CLONE SENT OUT!"
+
+        self.power_cd = POWER_COOLDOWN
+
+    def update_powers(self):
+        # orbiting damage field
+        if self.orbit_timer > 0:
+            self.orbit_timer -= 1
+            self.orbit_angle += 0.22
+            blade_r = 46
+            dmg_r = 12
+            damage = 6
+            for i in range(3):
+                a = self.orbit_angle + i * (2 * math.pi / 3)
+                bx = self.px + math.cos(a) * blade_r
+                by = self.py + math.sin(a) * blade_r
+                for e in self.enemies:
+                    if math.hypot(e["x"] - bx, e["y"] - by) <= (e["size"] / 2 + dmg_r):
+                        e["hp"] -= damage
+
+        # clones chase nearest enemy and deal contact damage
+        alive_clones = []
+        for c in self.clones:
+            c["ttl"] -= 1
+            if c["ttl"] <= 0:
+                continue
+
+            target = None
+            if self.enemies:
+                target = min(self.enemies, key=lambda e: (e["x"] - c["x"]) ** 2 + (e["y"] - c["y"]) ** 2)
+
+            if target:
+                dx = target["x"] - c["x"]
+                dy = target["y"] - c["y"]
+                d = math.hypot(dx, dy) + 1e-6
+                c["x"] += (dx / d) * 5.6
+                c["y"] += (dy / d) * 5.6
+                if d <= target["size"] / 2 + 10:
+                    target["hp"] -= 16
+            alive_clones.append(c)
+
+        self.clones = alive_clones
+
     def spawn_enemy(self):
-        if self.running:
+        if self.running and not self.shop_open:
             side = random.choice(["top", "bottom", "left", "right"])
             m = 30
             if side == "top":
@@ -426,6 +551,7 @@ class SurvivorGame:
             if e["hp"] <= 0:
                 self.kills += 1
                 self.score += 10
+                self.coins += 6
                 self.maybe_drop_powerup(e["x"], e["y"])
             else:
                 survivors.append(e)
@@ -468,6 +594,11 @@ class SurvivorGame:
         for b in self.bullets:
             r = b["r"]
             self.canvas.create_oval(b["x"] - r, b["y"] - r, b["x"] + r, b["y"] + r, fill="#ffd84d", outline="")
+
+        # clones
+        for c in self.clones:
+            s = 14
+            self.canvas.create_rectangle(c["x"] - s/2, c["y"] - s/2, c["x"] + s/2, c["y"] + s/2, fill="#74f0ff", outline="#d8fbff")
 
         # enemies (design changes with difficulty tiers)
         for e in self.enemies:
@@ -537,12 +668,25 @@ class SurvivorGame:
         spear_color = "#f4f7ff" if self.dash_timer == 0 else "#fff07a"
         self.canvas.create_line(self.px, self.py, sx, sy, fill=spear_color, width=5)
 
+        if self.orbit_timer > 0:
+            blade_r = 46
+            for i in range(3):
+                a = self.orbit_angle + i * (2 * math.pi / 3)
+                bx = self.px + math.cos(a) * blade_r
+                by = self.py + math.sin(a) * blade_r
+                self.canvas.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#c9a3ff", outline="#f0e0ff")
+
         # HUD
-        hud = f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}"
+        power_status = f"{self.power_cd//60}s" if self.power_cd > 0 else "READY"
+        hud = (
+            f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}   "
+            f"Coins: {self.coins}"
+        )
         buffs = (
             f"Buffs: RF {self.rapid_fire_timer//60}s | SPD {self.speed_timer//60}s | "
             f"SHD {self.shield_timer//60}s | TRI {self.multishot_timer//60}s | "
-            f"DASH {self.dash_cd//60 if self.dash_cd>0 else 'READY'}"
+            f"DASH {self.dash_cd//60 if self.dash_cd>0 else 'READY'} | "
+            f"POWER {self.equipped_power.upper()}:{power_status}"
         )
         self.canvas.create_text(12, 10, text=hud, fill="#f0f0f0", font=("Consolas", 14, "bold"), anchor="nw")
         self.canvas.create_text(12, 34, text=buffs, fill="#d8d8d8", font=("Consolas", 11), anchor="nw")
@@ -556,11 +700,23 @@ class SurvivorGame:
         )
         self.canvas.create_text(WIDTH // 2, HEIGHT - 12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
 
+        if self.shop_open:
+            self.canvas.create_rectangle(170, 140, WIDTH - 170, HEIGHT - 140, fill="#0f0f15", outline="#9b8cff", width=3)
+            shop_text = (
+                "SHOP (Press P to close)\n\n"
+                f"[1] DARK BURST  ({'OWNED' if self.unlocked_powers['dark'] else str(self.power_cost('dark')) + ' coins'})\n"
+                f"[2] ORBIT BLADES ({'OWNED' if self.unlocked_powers['orbit'] else str(self.power_cost('orbit')) + ' coins'})\n"
+                f"[3] CLONE RUSH   ({'OWNED' if self.unlocked_powers['clone'] else str(self.power_cost('clone')) + ' coins'})\n\n"
+                "Press 1/2/3 to buy/equip.\n"
+                "In battle press Q to use equipped power."
+            )
+            self.canvas.create_text(WIDTH // 2, HEIGHT // 2, text=shop_text, fill="#efe8ff", font=("Consolas", 16, "bold"), justify="center")
+
     # ---------- Main loop ----------
     def update(self):
         self.frame_count += 1
 
-        if self.running:
+        if self.running and not self.shop_open:
             self.move_player()
             self.update_dash()
             self.auto_shoot()
@@ -568,12 +724,15 @@ class SurvivorGame:
             self.update_enemies()
             self.collect_powerups()
             self.update_progression()
+            self.update_powers()
             self.tick_buffs()
 
         if self.shoot_cd > 0:
             self.shoot_cd -= 1
         if self.dash_cd > 0:
             self.dash_cd -= 1
+        if self.power_cd > 0:
+            self.power_cd -= 1
 
         self.draw()
         self.root.after(FPS_MS, self.update)
