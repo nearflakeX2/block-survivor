@@ -38,6 +38,9 @@ POWERUP_LIFETIME = 560  # frames (~9 sec)
 MAX_DAMAGE_STACKS = 8
 MAX_HEALTH_STACKS = 8
 MAX_REGEN_STACKS = 8
+MAX_LIFESTEAL_STACKS = 6
+MAX_BULLET_SPEED_STACKS = 6
+MAX_MAGNET_STACKS = 6
 
 # --- Shop / powers ---
 POWER_BASE_COST = 90
@@ -88,6 +91,9 @@ class SurvivorGame:
         self.damage_stack = 0
         self.health_stack = 0
         self.regen_stack = 0
+        self.lifesteal_stack = 0
+        self.bullet_speed_stack = 0
+        self.magnet_stack = 0
 
         # Combat timing
         self.shoot_cd = 0
@@ -189,6 +195,9 @@ class SurvivorGame:
         self.damage_stack = 0
         self.health_stack = 0
         self.regen_stack = 0
+        self.lifesteal_stack = 0
+        self.bullet_speed_stack = 0
+        self.magnet_stack = 0
         self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
 
     def max_hp(self):
@@ -445,8 +454,9 @@ class SurvivorGame:
         return min(self.enemies, key=lambda e: (e["x"] - self.px) ** 2 + (e["y"] - self.py) ** 2)
 
     def spawn_bullet(self, angle):
-        vx = math.cos(angle) * BULLET_SPEED
-        vy = math.sin(angle) * BULLET_SPEED
+        bullet_speed = BULLET_SPEED + self.bullet_speed_stack * 1.2
+        vx = math.cos(angle) * bullet_speed
+        vy = math.sin(angle) * bullet_speed
         self.bullets.append({"x": self.px, "y": self.py, "vx": vx, "vy": vy, "r": BULLET_RADIUS})
 
     def auto_shoot(self):
@@ -476,8 +486,8 @@ class SurvivorGame:
             return
 
         ptype = random.choices(
-            ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen"],
-            weights=[18, 14, 14, 12, 12, 12, 10, 8],
+            ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"],
+            weights=[16, 12, 12, 11, 11, 11, 9, 7, 6, 6, 5],
             k=1,
         )[0]
 
@@ -490,6 +500,9 @@ class SurvivorGame:
             "damage": "#ff784f", # orange-red
             "maxhp": "#7dffb2",  # mint
             "regen": "#9cf2ff",  # pale cyan
+            "lifesteal": "#ff5f9a", # rose
+            "bspeed": "#ffd166", # amber
+            "magnet": "#a6ff6b", # lime
         }[ptype]
 
         self.powerups.append({
@@ -508,6 +521,16 @@ class SurvivorGame:
             p["ttl"] -= 1
             if p["ttl"] <= 0:
                 continue
+
+            # magnet core pulls drops toward player
+            if self.magnet_stack > 0:
+                mdx = self.px - p["x"]
+                mdy = self.py - p["y"]
+                md = math.hypot(mdx, mdy) + 1e-6
+                pull_speed = 0.8 + self.magnet_stack * 0.45
+                if md < 220 + self.magnet_stack * 30:
+                    p["x"] += (mdx / md) * pull_speed
+                    p["y"] += (mdy / md) * pull_speed
 
             if math.hypot(p["x"] - self.px, p["y"] - self.py) <= (player_r + POWERUP_SIZE / 2):
                 self.apply_powerup(p["type"])
@@ -544,6 +567,15 @@ class SurvivorGame:
         elif ptype == "regen":
             self.regen_stack = min(MAX_REGEN_STACKS, self.regen_stack + 1)
             self.banner = f"PERM REGEN UP ({self.regen_stack})"
+        elif ptype == "lifesteal":
+            self.lifesteal_stack = min(MAX_LIFESTEAL_STACKS, self.lifesteal_stack + 1)
+            self.banner = f"PERM LIFESTEAL UP ({self.lifesteal_stack})"
+        elif ptype == "bspeed":
+            self.bullet_speed_stack = min(MAX_BULLET_SPEED_STACKS, self.bullet_speed_stack + 1)
+            self.banner = f"PERM BULLET SPD UP ({self.bullet_speed_stack})"
+        elif ptype == "magnet":
+            self.magnet_stack = min(MAX_MAGNET_STACKS, self.magnet_stack + 1)
+            self.banner = f"PERM MAGNET UP ({self.magnet_stack})"
 
     def update_bullets(self):
         alive_bullets = []
@@ -561,7 +593,10 @@ class SurvivorGame:
                 dist = math.hypot(e["x"] - b["x"], e["y"] - b["y"])
                 if dist <= (e["size"] / 2 + b["r"]):
                     bonus = self.damage_stack * 4
-                    e["hp"] -= (BULLET_DAMAGE + bonus)
+                    dealt = (BULLET_DAMAGE + bonus)
+                    e["hp"] -= dealt
+                    if self.lifesteal_stack > 0:
+                        self.hp = min(self.max_hp(), self.hp + self.lifesteal_stack * 0.6)
                     hit = True
                     break
 
@@ -619,6 +654,8 @@ class SurvivorGame:
         # passive regen from permanent regen stacks
         if self.regen_stack > 0 and self.running and self.frame_count % 30 == 0:
             self.hp = min(self.max_hp(), self.hp + self.regen_stack)
+
+        self.hp = min(self.max_hp(), self.hp)
 
     # ---------- Rendering ----------
     def draw(self):
@@ -757,7 +794,10 @@ class SurvivorGame:
         self.canvas.create_text(
             12,
             68,
-            text=f"Perm: DMG+{self.damage_stack*4}  MAXHP+{self.health_stack*12}  REGEN+{self.regen_stack}/sec",
+            text=(
+                f"Perm: DMG+{self.damage_stack*4} MAXHP+{self.health_stack*12} REGEN+{self.regen_stack}/s "
+                f"LS+{self.lifesteal_stack} BSPD+{self.bullet_speed_stack} MAG+{self.magnet_stack}"
+            ),
             fill="#9fd4ff",
             font=("Consolas", 10),
             anchor="nw",

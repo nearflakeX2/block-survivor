@@ -17,10 +17,13 @@ Timed stackable drops:
 - **Shield** (purple): reduced contact damage
 - **Triple Shot** (pink): fire 3 bullets
 
-New permanent drops (do not run out):
-- **Damage Core** (orange-red): +bullet damage permanently
-- **Max HP Core** (mint): +max HP permanently
-- **Regen Core** (light cyan): passive regen permanently
+Permanent drops (do not run out):
+- **Damage Core**: +bullet damage permanently
+- **Max HP Core**: +max HP permanently
+- **Regen Core**: passive regen permanently
+- **Lifesteal Core**: heal when bullets hit
+- **Bullet Speed Core**: faster bullets permanently
+- **Magnet Core**: pulls nearby drops to you
 
 ## Shop + Powers
 
