@@ -70,6 +70,7 @@ class SurvivorGame:
         self.wave = 1
         self.frame_count = 0
         self.coins = 0
+        self.drop_pity = 0
 
         # Player position centered
         self.px = WIDTH // 2
@@ -165,6 +166,7 @@ class SurvivorGame:
         self.wave = 1
         self.frame_count = 0
         self.coins = 0
+        self.drop_pity = 0
         self.hp = PLAYER_MAX_HP
         self.px = WIDTH // 2
         self.py = HEIGHT // 2
@@ -482,14 +484,24 @@ class SurvivorGame:
         self.shoot_cd = self.current_shoot_cooldown()
 
     def maybe_drop_powerup(self, x, y):
-        if random.random() > POWERUP_DROP_CHANCE:
+        self.drop_pity += 1
+
+        # Drop more often + guaranteed drop every 4 kills if unlucky
+        if random.random() > 0.34 and self.drop_pity < 4:
             return
 
-        ptype = random.choices(
-            ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"],
-            weights=[16, 12, 12, 11, 11, 11, 9, 7, 6, 6, 5],
-            k=1,
-        )[0]
+        self.drop_pity = 0
+
+        # Every 3rd drop guarantees a permanent core so it's easy to notice
+        guaranteed_perm = (self.kills % 3 == 0)
+        if guaranteed_perm:
+            ptype = random.choice(["damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"])
+        else:
+            ptype = random.choices(
+                ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"],
+                weights=[16, 12, 12, 11, 11, 11, 9, 7, 6, 6, 5],
+                k=1,
+            )[0]
 
         color = {
             "heal": "#4de284",   # green
@@ -668,11 +680,17 @@ class SurvivorGame:
             self.canvas.create_line(0, y, WIDTH, y, fill="#191919")
 
         # powerups
+        labels = {
+            "heal": "H", "rapid": "R", "speed": "S", "shield": "D", "multi": "T",
+            "damage": "+DMG", "maxhp": "+HP", "regen": "+RG", "lifesteal": "+LS",
+            "bspeed": "+BS", "magnet": "+MG"
+        }
         for p in self.powerups:
             s = POWERUP_SIZE
             x1, y1 = p["x"] - s / 2, p["y"] - s / 2
             x2, y2 = p["x"] + s / 2, p["y"] + s / 2
             self.canvas.create_oval(x1, y1, x2, y2, fill=p["color"], outline="#ffffff")
+            self.canvas.create_text(p["x"], p["y"], text=labels.get(p["type"], "?"), fill="#0b0b0b", font=("Consolas", 7, "bold"))
 
         # bullets
         for b in self.bullets:
