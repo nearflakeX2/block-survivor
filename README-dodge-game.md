@@ -1,6 +1,17 @@
-# Gladium (Python)
+# Gladium (Python Arena Prototype)
 
-Arena-themed dodge game built with Python + Tkinter.
+A brutal 2D top-down gladiator arena game prototype made in Python + Tkinter.
+
+## Features
+
+- Fast-paced top-down arena combat
+- 1v1 feel with increasingly hard wave battles
+- Gold + Blood currencies from kills/wave clears
+- Upgrade shop between waves:
+  - Weapon (damage)
+  - Shield (HP + damage reduction)
+  - Blood Art (special attack power)
+- Basic attack + special AOE ability
 
 ## Run
 
@@ -10,11 +21,9 @@ python dodge_game.py
 
 ## Controls
 
-- Move: `WASD` or Arrow keys
-- Restart after defeat: `R`
-
-## Features
-
-- Gladiator arena visuals
-- Wave-based enemy scaling
-- Combo scoring system
+- Move: `WASD` or Arrow Keys
+- Basic attack: `Space`
+- Special attack: `F`
+- Shop buys: `1` / `2` / `3`
+- Start next wave from shop: `Enter`
+- Restart after death: `R`
