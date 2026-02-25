@@ -17,6 +17,12 @@ BULLET_SPEED = 9.0
 BULLET_DAMAGE = 24
 BULLET_RADIUS = 4
 
+# --- Dash + spear ---
+DASH_SPEED = 13.0
+DASH_DURATION = 8           # frames
+DASH_COOLDOWN = 42          # frames
+DASH_HIT_DAMAGE = 56
+
 # --- Enemies ---
 ENEMY_SIZE = 24
 ENEMY_BASE_SPEED = 1.6
@@ -69,9 +75,17 @@ class SurvivorGame:
 
         # Combat timing
         self.shoot_cd = 0
+        self.dash_cd = 0
+        self.dash_timer = 0
+        self.dash_vx = 0.0
+        self.dash_vy = 0.0
+
+        # facing direction (for spear + dash aim)
+        self.face_x = 1.0
+        self.face_y = 0.0
 
         # UI message
-        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | Press R to restart"
+        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | SPACE dash+spear hit | Press R to restart"
 
         # Spawn loop
         self.spawn_interval = SPAWN_BASE_INTERVAL
@@ -85,6 +99,8 @@ class SurvivorGame:
         self.keys.add(key)
         if key == "r" and self.game_over:
             self.restart()
+        if key == "space" and self.running:
+            self.start_dash()
 
     def on_key_release(self, event):
         self.keys.discard(event.keysym.lower())
@@ -104,12 +120,18 @@ class SurvivorGame:
         self.bullets.clear()
         self.powerups.clear()
         self.shoot_cd = 0
+        self.dash_cd = 0
+        self.dash_timer = 0
+        self.dash_vx = 0.0
+        self.dash_vy = 0.0
+        self.face_x = 1.0
+        self.face_y = 0.0
         self.spawn_interval = SPAWN_BASE_INTERVAL
         self.rapid_fire_timer = 0
         self.speed_timer = 0
         self.shield_timer = 0
         self.multishot_timer = 0
-        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | Press R to restart"
+        self.banner = "Move with WASD / Arrows | Auto-shoot nearest enemy | SPACE dash+spear hit | Press R to restart"
 
     def current_player_speed(self):
         if self.speed_timer > 0:
@@ -122,6 +144,9 @@ class SurvivorGame:
         return BASE_SHOOT_COOLDOWN
 
     def move_player(self):
+        if self.dash_timer > 0:
+            return
+
         speed = self.current_player_speed()
         dx = dy = 0.0
         if "a" in self.keys or "left" in self.keys:
@@ -137,9 +162,67 @@ class SurvivorGame:
             dx *= 0.7071
             dy *= 0.7071
 
+        # update facing while moving
+        if dx or dy:
+            mag = math.hypot(dx, dy)
+            self.face_x = dx / mag
+            self.face_y = dy / mag
+
         half = PLAYER_SIZE / 2
         self.px = max(half, min(WIDTH - half, self.px + dx))
         self.py = max(half, min(HEIGHT - half, self.py + dy))
+
+    def start_dash(self):
+        if self.dash_cd > 0 or self.dash_timer > 0:
+            return
+
+        # dash direction from movement keys, else toward nearest enemy, else facing dir
+        dx = dy = 0.0
+        if "a" in self.keys or "left" in self.keys:
+            dx -= 1
+        if "d" in self.keys or "right" in self.keys:
+            dx += 1
+        if "w" in self.keys or "up" in self.keys:
+            dy -= 1
+        if "s" in self.keys or "down" in self.keys:
+            dy += 1
+
+        if dx == 0 and dy == 0:
+            t = self.nearest_enemy()
+            if t:
+                dx = t["x"] - self.px
+                dy = t["y"] - self.py
+            else:
+                dx, dy = self.face_x, self.face_y
+
+        mag = math.hypot(dx, dy) + 1e-6
+        self.dash_vx = (dx / mag) * DASH_SPEED
+        self.dash_vy = (dy / mag) * DASH_SPEED
+        self.face_x = dx / mag
+        self.face_y = dy / mag
+        self.dash_timer = DASH_DURATION
+        self.dash_cd = DASH_COOLDOWN
+
+    def update_dash(self):
+        if self.dash_timer <= 0:
+            return
+
+        half = PLAYER_SIZE / 2
+        self.px = max(half, min(WIDTH - half, self.px + self.dash_vx))
+        self.py = max(half, min(HEIGHT - half, self.py + self.dash_vy))
+
+        # spear-dash collision damage
+        spear_len = 30
+        tip_x = self.px + self.face_x * spear_len
+        tip_y = self.py + self.face_y * spear_len
+        for e in self.enemies:
+            # hit if close to player or spear tip while dashing
+            d_body = math.hypot(e["x"] - self.px, e["y"] - self.py)
+            d_tip = math.hypot(e["x"] - tip_x, e["y"] - tip_y)
+            if d_body <= (e["size"] / 2 + PLAYER_SIZE / 2) or d_tip <= (e["size"] / 2 + 8):
+                e["hp"] -= DASH_HIT_DAMAGE
+
+        self.dash_timer -= 1
 
     def spawn_enemy(self):
         if self.running:
@@ -283,17 +366,17 @@ class SurvivorGame:
             self.hp = min(PLAYER_MAX_HP, self.hp + 28)
             self.banner = "+HEAL"
         elif ptype == "rapid":
-            self.rapid_fire_timer = max(self.rapid_fire_timer, 420)
-            self.banner = "RAPID FIRE!"
+            self.rapid_fire_timer = min(1800, self.rapid_fire_timer + 420)
+            self.banner = "RAPID FIRE STACKED!"
         elif ptype == "speed":
-            self.speed_timer = max(self.speed_timer, 420)
-            self.banner = "SPEED BOOST!"
+            self.speed_timer = min(1800, self.speed_timer + 420)
+            self.banner = "SPEED BOOST STACKED!"
         elif ptype == "shield":
-            self.shield_timer = max(self.shield_timer, 420)
-            self.banner = "SHIELD ON!"
+            self.shield_timer = min(1800, self.shield_timer + 420)
+            self.banner = "SHIELD STACKED!"
         elif ptype == "multi":
-            self.multishot_timer = max(self.multishot_timer, 420)
-            self.banner = "TRIPLE SHOT!"
+            self.multishot_timer = min(1800, self.multishot_timer + 420)
+            self.banner = "TRIPLE SHOT STACKED!"
 
     def update_bullets(self):
         alive_bullets = []
@@ -438,20 +521,28 @@ class SurvivorGame:
             fill=player_fill, outline="#cfe8ff", width=2
         )
 
-        # gun line toward nearest enemy
+        # gun line toward nearest enemy (auto-shoot aim)
         t = self.nearest_enemy()
         if t:
             dx, dy = t["x"] - self.px, t["y"] - self.py
             d = math.hypot(dx, dy) + 1e-6
-            gx = self.px + (dx / d) * 24
-            gy = self.py + (dy / d) * 24
-            self.canvas.create_line(self.px, self.py, gx, gy, fill="#e6f3ff", width=4)
+            gx = self.px + (dx / d) * 20
+            gy = self.py + (dy / d) * 20
+            self.canvas.create_line(self.px, self.py, gx, gy, fill="#e6f3ff", width=3)
+
+        # spear (points where you face / dash)
+        spear_len = 30 if self.dash_timer == 0 else 42
+        sx = self.px + self.face_x * spear_len
+        sy = self.py + self.face_y * spear_len
+        spear_color = "#f4f7ff" if self.dash_timer == 0 else "#fff07a"
+        self.canvas.create_line(self.px, self.py, sx, sy, fill=spear_color, width=5)
 
         # HUD
         hud = f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}"
         buffs = (
             f"Buffs: RF {self.rapid_fire_timer//60}s | SPD {self.speed_timer//60}s | "
-            f"SHD {self.shield_timer//60}s | TRI {self.multishot_timer//60}s"
+            f"SHD {self.shield_timer//60}s | TRI {self.multishot_timer//60}s | "
+            f"DASH {self.dash_cd//60 if self.dash_cd>0 else 'READY'}"
         )
         self.canvas.create_text(12, 10, text=hud, fill="#f0f0f0", font=("Consolas", 14, "bold"), anchor="nw")
         self.canvas.create_text(12, 34, text=buffs, fill="#d8d8d8", font=("Consolas", 11), anchor="nw")
@@ -471,6 +562,7 @@ class SurvivorGame:
 
         if self.running:
             self.move_player()
+            self.update_dash()
             self.auto_shoot()
             self.update_bullets()
             self.update_enemies()
@@ -480,6 +572,8 @@ class SurvivorGame:
 
         if self.shoot_cd > 0:
             self.shoot_cd -= 1
+        if self.dash_cd > 0:
+            self.dash_cd -= 1
 
         self.draw()
         self.root.after(FPS_MS, self.update)
