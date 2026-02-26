@@ -1042,8 +1042,8 @@ class Game:
         self.hp = min(self.max_hp, self.hp + self.stat_regen / 60)
         self.wave = 1 + self.kills // 15
 
-        # power choice popup is Classic-only
-        if self.mode == "Classic" and self.coins >= self.next_choice_coin and not self.power_choice_open:
+        # power choice popup is Hardcore-only
+        if self.mode == "Hardcore" and self.coins >= self.next_choice_coin and not self.power_choice_open:
             self.power_choice_open = True
             self.power_choices = self.roll_power_choices(3)
             self.banner = "Pick 1 of 3 powers"
