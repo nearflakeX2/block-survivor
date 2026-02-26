@@ -33,6 +33,8 @@ Latest updates:
 - Cast powers auto-fire when reloaded (including Meteor)
 - Added all suggested powers: Black Hole, Flamethrower, Frost Mine, Shield Drone, Vampiric, Shockwave, Orbital Laser, Decoy, Execution, Bounty, Cluster RPG, Phoenix, Chain Hook, Thunder Totem, Overclock
 - Added throw/ability animations for new powers + reload bars/timers for active and proc-based powers
+- New Start Page mode select: Classic / Hardcore
+- When you reach coin milestones, game pauses and lets you choose 1 of 3 powers
 - Pause mode now includes quick testing keys (1/2/3/4)
 - Added Nuke Mine power (auto triggers every 30 seconds, massive wipe zone)
 - Power panel now has bigger rows + always-visible up/down scroll buttons

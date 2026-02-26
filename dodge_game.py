@@ -34,6 +34,14 @@ class Game:
         self.pause_btn = (WORLD_W - 110, 10, WORLD_W - 20, 40)
 
         self.setup_powers()
+
+        self.mode = None
+        self.in_start_menu = True
+        self.mode_buttons = {
+            "Classic": (WORLD_W//2 - 220, HEIGHT//2 - 40, WORLD_W//2 - 40, HEIGHT//2 + 20),
+            "Hardcore": (WORLD_W//2 + 40, HEIGHT//2 - 40, WORLD_W//2 + 220, HEIGHT//2 + 20),
+        }
+
         self.reset()
         self.root.after(self.spawn_ms, self.spawn_enemy)
         self.tick()
@@ -109,11 +117,16 @@ class Game:
         self.game_over = False
         self.paused = False
 
+        self.power_choice_open = False
+        self.power_choices = []
+        self.next_choice_coin = 120
+
         self.px, self.py = WORLD_W // 2, HEIGHT // 2
         self.face_x, self.face_y = 1.0, 0.0
 
-        self.hp = float(BASE_HP)
-        self.max_hp = BASE_HP
+        mode_hp_mul = 0.8 if self.mode == "Hardcore" else 1.0
+        self.hp = float(BASE_HP * mode_hp_mul)
+        self.max_hp = int(BASE_HP * mode_hp_mul)
         self.coins = 0
         self.kills = 0
         self.wave = 1
@@ -140,7 +153,7 @@ class Game:
         self.shake_t = 0
         self.shake_mag = 0
 
-        self.spawn_ms = SPAWN_MS
+        self.spawn_ms = int(SPAWN_MS * (0.78 if self.mode == "Hardcore" else 1.0))
         self.frame = 0
 
         self.shoot_cd = 0
@@ -228,6 +241,8 @@ class Game:
     def on_key_down(self, e):
         k = e.keysym.lower()
         self.keys.add(k)
+        if self.in_start_menu:
+            return
         if k == "r" and self.game_over:
             self.reset()
         if k == "p" and self.running and not self.game_over:
@@ -258,9 +273,32 @@ class Game:
     def on_wheel(self, e):
         # scroll power list
         delta = -1 if e.delta > 0 else 1
-        self.panel_scroll = max(0, min(len(self.powers) - 1, self.panel_scroll + delta))
+        visible = max(1, (HEIGHT - 110 - 50) // 34)
+        max_scroll = max(0, len(self.powers) - visible)
+        self.panel_scroll = max(0, min(max_scroll, self.panel_scroll + delta))
 
     def on_click(self, e):
+        if self.in_start_menu:
+            for name, (x1, y1, x2, y2) in self.mode_buttons.items():
+                if x1 <= e.x <= x2 and y1 <= e.y <= y2:
+                    self.mode = name
+                    self.in_start_menu = False
+                    self.reset()
+                    self.banner = f"Mode: {name}"
+                    return
+            return
+
+        if self.power_choice_open:
+            cx, cy, cw, ch = WORLD_W//2 - 120, 180, 240, 72
+            for i, p in enumerate(self.power_choices):
+                yy = cy + i * (ch + 16)
+                if cx <= e.x <= cx + cw and yy <= e.y <= yy + ch:
+                    self.power_choice_open = False
+                    self.buy_or_use_power(p)
+                    self.next_choice_coin += 120
+                    return
+            return
+
         x1, y1, x2, y2 = self.pause_btn
         if x1 <= e.x <= x2 and y1 <= e.y <= y2 and self.running and not self.game_over:
             self.paused = not self.paused
@@ -284,7 +322,9 @@ class Game:
             self.panel_scroll = max(0, self.panel_scroll - 1)
             return
         if HEIGHT - 34 <= e.y <= HEIGHT - 6:
-            self.panel_scroll = min(max(0, len(self.powers) - 1), self.panel_scroll + 1)
+            visible = max(1, (HEIGHT - 110 - 50) // 34)
+            max_scroll = max(0, len(self.powers) - visible)
+            self.panel_scroll = min(max_scroll, self.panel_scroll + 1)
             return
 
         idx_in_view = (e.y - y0) // row_h
@@ -308,6 +348,11 @@ class Game:
             return 0
         # each level trims cooldown a bit but keeps minimum floor
         return max(45, self.cooldown_base[pid] - (lv - 1) * 12)
+
+    def roll_power_choices(self, n=3):
+        pool = self.powers[:]
+        random.shuffle(pool)
+        return pool[:min(n, len(pool))]
 
     def buy_or_use_power(self, p):
         pid = p["id"]
@@ -411,7 +456,7 @@ class Game:
             pass
     # ---------- gameplay ----------
     def spawn_enemy(self):
-        if self.running:
+        if self.running and not self.in_start_menu:
             side = random.randint(0, 3)
             if side == 0:
                 x, y = random.randint(20, WORLD_W - 20), -20
@@ -524,7 +569,7 @@ class Game:
     def update_logic(self):
         if not self.running:
             return
-        if self.paused:
+        if self.paused or self.power_choice_open or self.in_start_menu:
             return
 
         self.frame += 1
@@ -991,6 +1036,11 @@ class Game:
         self.hp = min(self.max_hp, self.hp + self.stat_regen / 60)
         self.wave = 1 + self.kills // 15
 
+        if self.coins >= self.next_choice_coin and not self.power_choice_open:
+            self.power_choice_open = True
+            self.power_choices = self.roll_power_choices(3)
+            self.banner = "Pick 1 of 3 powers"
+
         if self.hp <= 0:
             if self.phoenix_charge > 0:
                 self.phoenix_charge = 0
@@ -1143,6 +1193,17 @@ class Game:
     def draw(self):
         c = self.canvas
         c.delete("all")
+
+        if self.in_start_menu:
+            c.create_rectangle(0, 0, WIDTH, HEIGHT, fill="#0e0e16", outline="")
+            c.create_text(WORLD_W//2, 120, text="BLOCK SURVIVOR", fill="#efe8ff", font=("Consolas", 38, "bold"))
+            c.create_text(WORLD_W//2, 170, text="Choose a mode", fill="#cbd3ff", font=("Consolas", 14, "bold"))
+            for name, (x1, y1, x2, y2) in self.mode_buttons.items():
+                color = "#2a3f2a" if name == "Classic" else "#4a2525"
+                c.create_rectangle(x1, y1, x2, y2, fill=color, outline="#d6dcff", width=2)
+                c.create_text((x1+x2)/2, (y1+y2)/2, text=name, fill="#f3f6ff", font=("Consolas", 14, "bold"))
+            c.create_text(WORLD_W//2, HEIGHT-80, text="Classic = normal | Hardcore = faster spawns + lower HP", fill="#aeb8e6", font=("Consolas", 10))
+            return
 
         # world bg/grid
         c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#101010", outline="")
@@ -1313,6 +1374,16 @@ class Game:
 
         if self.game_over:
             c.create_text(WORLD_W//2, HEIGHT//2, text="GAME OVER\nPress R", fill="#ffd2a6", font=("Consolas", 30, "bold"), justify="center")
+
+        if self.power_choice_open:
+            c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#000000", stipple="gray25", outline="")
+            c.create_text(WORLD_W//2, 130, text="Choose 1 Power", fill="#fff0c7", font=("Consolas", 22, "bold"))
+            cx, cy, cw, ch = WORLD_W//2 - 120, 180, 240, 72
+            for i, p in enumerate(self.power_choices):
+                y = cy + i * (ch + 16)
+                c.create_rectangle(cx, y, cx+cw, y+ch, fill="#22263d", outline="#b9c4ff", width=2)
+                c.create_text(cx+12, y+24, anchor="w", text=p["name"], fill="#f4f6ff", font=("Consolas", 12, "bold"))
+                c.create_text(cx+12, y+48, anchor="w", text=f"Lv {self.power_lv.get(p['id'],0)} -> {self.power_lv.get(p['id'],0)+1}", fill="#bcd0ff", font=("Consolas", 10))
 
         self.draw_reload_bars()
         self.draw_panel()
