@@ -31,6 +31,8 @@ class Game:
         self.canvas.bind("<Button-1>", self.on_click)
         self.canvas.bind_all("<MouseWheel>", self.on_wheel)
 
+        self.pause_btn = (WORLD_W - 110, 10, WORLD_W - 20, 40)
+
         self.setup_powers()
         self.reset()
         self.root.after(self.spawn_ms, self.spawn_enemy)
@@ -89,6 +91,7 @@ class Game:
     def reset(self):
         self.running = True
         self.game_over = False
+        self.paused = False
 
         self.px, self.py = WORLD_W // 2, HEIGHT // 2
         self.face_x, self.face_y = 1.0, 0.0
@@ -108,6 +111,10 @@ class Game:
         self.explosions = []
         self.clones = []
         self.rockets = []
+        self.smoke = []
+
+        self.shake_t = 0
+        self.shake_mag = 0
 
         self.spawn_ms = SPAWN_MS
         self.frame = 0
@@ -168,7 +175,10 @@ class Game:
         self.keys.add(k)
         if k == "r" and self.game_over:
             self.reset()
-        if k == "space" and self.running:
+        if k == "p" and self.running and not self.game_over:
+            self.paused = not self.paused
+            self.banner = "Paused" if self.paused else "Resumed"
+        if k == "space" and self.running and not self.paused:
             self.start_dash()
 
     def on_key_up(self, e):
@@ -180,6 +190,12 @@ class Game:
         self.panel_scroll = max(0, min(len(self.powers) - 1, self.panel_scroll + delta))
 
     def on_click(self, e):
+        x1, y1, x2, y2 = self.pause_btn
+        if x1 <= e.x <= x2 and y1 <= e.y <= y2 and self.running and not self.game_over:
+            self.paused = not self.paused
+            self.banner = "Paused" if self.paused else "Resumed"
+            return
+
         if e.x < WORLD_W:
             return
 
@@ -373,6 +389,8 @@ class Game:
     def update_logic(self):
         if not self.running:
             return
+        if self.paused:
+            return
 
         self.frame += 1
 
@@ -507,6 +525,8 @@ class Game:
             m["t"] -= 1
             if m["t"] <= 0:
                 self.explosions.append({"x": m["x"], "y": m["y"], "t": 16, "max": 16, "r": m["r"]})
+                self.shake_t = max(self.shake_t, 8)
+                self.shake_mag = max(self.shake_mag, 7)
                 for en in self.enemies:
                     if math.hypot(en["x"] - m["x"], en["y"] - m["y"]) < m["r"]:
                         en["hp"] -= m["dmg"]
@@ -534,6 +554,9 @@ class Game:
         # rockets
         alive_r = []
         for r in self.rockets:
+            # trailing smoke
+            self.smoke.append({"x": r["x"], "y": r["y"], "t": 22, "max": 22, "r": random.uniform(4.0, 7.5)})
+
             r["x"] += r["vx"]
             r["y"] += r["vy"]
             if r["x"] < -20 or r["x"] > WORLD_W+20 or r["y"] < -20 or r["y"] > HEIGHT+20:
@@ -542,6 +565,8 @@ class Game:
             for en in self.enemies:
                 if math.hypot(en["x"]-r["x"], en["y"]-r["y"]) <= en["s"]/2 + 7:
                     self.explosions.append({"x": r["x"], "y": r["y"], "t": 18, "max": 18, "r": r["r"] + 24})
+                    self.shake_t = max(self.shake_t, 10)
+                    self.shake_mag = max(self.shake_mag, 9)
                     for aoe in self.enemies:
                         if math.hypot(aoe["x"]-r["x"], aoe["y"]-r["y"]) < r["r"]:
                             aoe["hp"] -= r["dmg"]
@@ -550,6 +575,14 @@ class Game:
             if not hit:
                 alive_r.append(r)
         self.rockets = alive_r
+
+        # smoke timer
+        alive_s = []
+        for s in self.smoke:
+            s["t"] -= 1
+            if s["t"] > 0:
+                alive_s.append(s)
+        self.smoke = alive_s
 
         # explosion visuals timer
         alive_x = []
@@ -610,6 +643,9 @@ class Game:
         self.freeze_t = max(0, self.freeze_t - 1)
         for pid in self.cooldowns:
             self.cooldowns[pid] = max(0, self.cooldowns[pid] - 1)
+        self.shake_t = max(0, self.shake_t - 1)
+        if self.shake_t == 0:
+            self.shake_mag = 0
 
         self.hp = min(self.max_hp, self.hp + self.stat_regen / 60)
         self.wave = 1 + self.kills // 15
@@ -741,8 +777,16 @@ class Game:
             r = b["r"]
             c.create_oval(b["x"]-r, b["y"]-r, b["x"]+r, b["y"]+r, fill="#ffd84d", outline="")
 
+        for s in self.smoke:
+            p = s["t"] / s["max"]
+            rr = s["r"] * (1.2 - p * 0.3)
+            shade = int(70 + 90 * p)
+            color = f"#{shade:02x}{shade:02x}{shade:02x}"
+            c.create_oval(s["x"]-rr, s["y"]-rr, s["x"]+rr, s["y"]+rr, fill=color, outline="")
+
         for rb in self.rockets:
-            c.create_oval(rb["x"]-5, rb["y"]-5, rb["x"]+5, rb["y"]+5, fill="#ff8855", outline="#ffd9c7")
+            c.create_oval(rb["x"]-6, rb["y"]-6, rb["x"]+6, rb["y"]+6, fill="#ff8855", outline="#ffd9c7")
+            c.create_oval(rb["x"]-2, rb["y"]-2, rb["x"]+2, rb["y"]+2, fill="#ffe6b3", outline="")
 
         for tb in self.turret_bullets:
             c.create_oval(tb["x"]-3, tb["y"]-3, tb["x"]+3, tb["y"]+3, fill="#9cf5ff", outline="")
@@ -761,6 +805,11 @@ class Game:
         for m in self.meteors:
             rr = m["r"] * (m["t"]/m["max_t"])
             c.create_oval(m["x"]-rr, m["y"]-rr, m["x"]+rr, m["y"]+rr, outline="#ff4b4b", width=2)
+            # visible falling meteor core + tail
+            prog = 1 - (m["t"] / m["max_t"])
+            my = m["y"] - 120 + prog * 100
+            c.create_line(m["x"]-12, my-18, m["x"]+2, my-2, fill="#ffb36b", width=3)
+            c.create_oval(m["x"]-7, my-7, m["x"]+7, my+7, fill="#ff8a45", outline="#ffe2ad")
 
         for ex in self.explosions:
             p = ex["t"] / ex["max"]
@@ -815,11 +864,25 @@ class Game:
                       text=f"HP {int(self.hp)}/{self.max_hp}  Coins {self.coins}  Wave {self.wave}  Kills {self.kills}")
         c.create_text(10, 32, anchor="nw", fill="#d2d2d2", font=("Consolas", 10), text=self.banner)
 
+        # pause button
+        x1, y1, x2, y2 = self.pause_btn
+        c.create_rectangle(x1, y1, x2, y2, fill="#1d2f4f" if not self.paused else "#4f2a1d", outline="#a9c6ff", width=2)
+        c.create_text((x1+x2)/2, (y1+y2)/2, text="PAUSE (P)" if not self.paused else "RESUME (P)", fill="#e9f2ff", font=("Consolas", 9, "bold"))
+
+        if self.paused and not self.game_over:
+            c.create_text(WORLD_W//2, HEIGHT//2, text="PAUSED", fill="#d7e8ff", font=("Consolas", 34, "bold"))
+
         if self.game_over:
             c.create_text(WORLD_W//2, HEIGHT//2, text="GAME OVER\nPress R", fill="#ffd2a6", font=("Consolas", 30, "bold"), justify="center")
 
         self.draw_reload_bars()
         self.draw_panel()
+
+        # screen shake on big explosions
+        if self.shake_t > 0 and self.shake_mag > 0:
+            sx = random.randint(-self.shake_mag, self.shake_mag)
+            sy = random.randint(-self.shake_mag, self.shake_mag)
+            c.move("all", sx, sy)
 
     def tick(self):
         self.update_logic()

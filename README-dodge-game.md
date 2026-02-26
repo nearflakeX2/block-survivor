@@ -14,9 +14,15 @@ Latest updates:
 ## Controls
 - Move: `WASD` / Arrow keys
 - Dash + spear hit: `Space`
+- Pause/Resume: `P` (or click pause button)
 - Restart: `R`
 - Mouse wheel: scroll power list
 - Mouse left click: buy/upgrade power in panel
+
+## Visual Effects
+- Screen shake on big explosions (RPG/meteor)
+- RPG rockets now have a smoke trail
+- Meteor warning now includes a visible falling meteor core/tail
 
 ## Run
 ```bash
