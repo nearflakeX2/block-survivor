@@ -7,6 +7,8 @@ Latest updates:
 - Added **Machine Gun** upgrade
 - Clone Swarm still included
 - Meteor Shower uses shrinking red warning circles then explosion
+- Cast powers now have **reload/cooldowns**
+- Added a **bottom reload bar HUD** (RPG, Meteor, and other cast powers)
 - Each power shows **current level + next upgrade cost** in the panel
 
 ## Controls

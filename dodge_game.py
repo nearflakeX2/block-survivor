@@ -121,6 +121,27 @@ class Game:
         self.freeze_t = 0
         self.cast_cd = 0
 
+        # reload/cooldown timers (in frames)
+        self.cooldowns = {
+            "meteor_drop": 0,
+            "blood_nova": 0,
+            "chain_lightning": 0,
+            "time_freeze": 0,
+            "clone_swarm": 0,
+            "auto_turret": 0,
+            "rpg_launcher": 0,
+        }
+
+        # base cooldown lengths (reduced by higher levels for cast powers)
+        self.cooldown_base = {
+            "meteor_drop": 240,
+            "blood_nova": 170,
+            "chain_lightning": 120,
+            "time_freeze": 280,
+            "clone_swarm": 220,
+            "auto_turret": 170,
+        }
+
         # power ownership and runtime
         self.owned = set()
         self.power_lv = {}
@@ -187,9 +208,21 @@ class Game:
         lv = self.power_lv.get(pid, 0)
         return base + lv * 45
 
+    def get_cooldown_max(self, pid, lv):
+        if pid not in self.cooldown_base:
+            return 0
+        # each level trims cooldown a bit but keeps minimum floor
+        return max(45, self.cooldown_base[pid] - (lv - 1) * 12)
+
     def buy_or_use_power(self, p):
         pid = p["id"]
         kind = p["kind"]
+
+        # cast powers have reload timers
+        if kind == "cast" and self.cooldowns.get(pid, 0) > 0:
+            left = self.cooldowns[pid] // 60 + 1
+            self.banner = f"{p['name']} reloading ({left}s)"
+            return
 
         cost = self.power_cost(p)
         if self.coins < cost:
@@ -208,6 +241,7 @@ class Game:
             self.banner = f"{p['name']} upgraded to Lv{new_lv}"
         else:
             self.cast_power(pid, new_lv)
+            self.cooldowns[pid] = self.get_cooldown_max(pid, new_lv)
             self.banner = f"{p['name']} cast Lv{new_lv}"
 
     def apply_passive(self, pid, lv):
@@ -326,11 +360,12 @@ class Game:
                 sp = BASE_BULLET_SPEED + 1.6 + self.stat_machinegun * 0.3
                 self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
 
-        # RPG launcher shoots rockets in addition to bullets
+        # RPG launcher shoots rockets with visible reload timer
         rpg_lv = self.power_lv.get("rpg_launcher", 0)
-        if rpg_lv > 0 and self.frame % max(22, 80 - rpg_lv*8) == 0:
+        if rpg_lv > 0 and self.cooldowns["rpg_launcher"] <= 0:
             rv = 5.8 + rpg_lv * 0.7
             self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base)*rv, "vy": math.sin(base)*rv, "dmg": 80 + rpg_lv*26, "r": 56 + rpg_lv*6})
+            self.cooldowns["rpg_launcher"] = max(20, 80 - rpg_lv * 8)
 
         cd = int(BASE_FIRE_CD * (1 - 0.12 * self.stat_rapid))
         self.shoot_cd = max(3, cd)
@@ -573,6 +608,8 @@ class Game:
         self.shoot_cd = max(0, self.shoot_cd - 1)
         self.dash_cd = max(0, self.dash_cd - 1)
         self.freeze_t = max(0, self.freeze_t - 1)
+        for pid in self.cooldowns:
+            self.cooldowns[pid] = max(0, self.cooldowns[pid] - 1)
 
         self.hp = min(self.max_hp, self.hp + self.stat_regen / 60)
         self.wave = 1 + self.kills // 15
@@ -642,6 +679,48 @@ class Game:
         # hovered/selected description not tracked; show tip
         c.create_text(WORLD_W + 10, HEIGHT - 50, anchor="nw", fill="#bfc3ff", font=("Consolas", 9),
                       text="Every power can be leveled.\nRight value shows next upgrade cost.")
+
+    def draw_reload_bars(self):
+        c = self.canvas
+
+        tracked = []
+
+        # always show RPG if owned
+        if self.power_lv.get("rpg_launcher", 0) > 0:
+            max_cd = max(20, 80 - self.power_lv.get("rpg_launcher", 0) * 8)
+            tracked.append(("RPG", self.cooldowns["rpg_launcher"], max_cd, "#ff9858"))
+
+        # show cast powers once purchased
+        for pid, label, color in [
+            ("meteor_drop", "Meteor", "#ff4b4b"),
+            ("blood_nova", "Nova", "#d063ff"),
+            ("chain_lightning", "Lightning", "#79d8ff"),
+            ("time_freeze", "Freeze", "#9fd6ff"),
+            ("clone_swarm", "Clones", "#7fffd7"),
+            ("auto_turret", "Turret", "#f8d29b"),
+        ]:
+            if self.power_lv.get(pid, 0) > 0:
+                max_cd = self.get_cooldown_max(pid, self.power_lv.get(pid, 1))
+                tracked.append((label, self.cooldowns[pid], max_cd, color))
+
+        if not tracked:
+            return
+
+        x = 10
+        y = HEIGHT - 20
+        h = 10
+        for name, cd, max_cd, color in tracked:
+            w = 95
+            ready = max_cd == 0 or cd <= 0
+            ratio = 1.0 if ready else max(0.0, min(1.0, 1 - cd / max_cd))
+
+            c.create_rectangle(x, y, x + w, y + h, fill="#2b2b2b", outline="#666")
+            c.create_rectangle(x, y, x + w * ratio, y + h, fill=color if not ready else "#67d67a", outline="")
+            c.create_text(x + w / 2, y - 6, text=f"{name} {'READY' if ready else ''}".strip(), fill="#d9d9d9", font=("Consolas", 8, "bold"))
+            x += w + 8
+            if x + w > WORLD_W - 10:
+                x = 10
+                y -= 22
 
     def draw(self):
         c = self.canvas
@@ -739,6 +818,7 @@ class Game:
         if self.game_over:
             c.create_text(WORLD_W//2, HEIGHT//2, text="GAME OVER\nPress R", fill="#ffd2a6", font=("Consolas", 30, "bold"), justify="center")
 
+        self.draw_reload_bars()
         self.draw_panel()
 
     def tick(self):
