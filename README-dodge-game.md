@@ -26,11 +26,12 @@ Latest updates:
 - Floating combat text (+coins / damage ticks)
 
 ## New Gameplay Additions
-- Boss wave every 5 waves
+- Boss wave every 5 waves + rotating boss archetypes (brute/summoner/artillery/vampire/storm)
 - Enemy variants: charger, tank, shooter
 - Rarity strip colors in the power panel (common/rare/epic/legendary)
 - Edge threat indicators for offscreen enemies
 - Cast powers auto-fire when reloaded (including Meteor)
+- Added all suggested powers: Black Hole, Flamethrower, Frost Mine, Shield Drone, Vampiric, Shockwave, Orbital Laser, Decoy, Execution, Bounty, Cluster RPG, Phoenix, Chain Hook, Thunder Totem, Overclock
 
 ## Run
 ```bash

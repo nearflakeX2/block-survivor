@@ -62,6 +62,21 @@ class Game:
             {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast","rarity":"epic"},
             {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive","rarity":"legendary"},
             {"id":"machine_gun","name":"Machine Gun","cost":170,"kind":"passive","rarity":"legendary"},
+            {"id":"black_hole_core","name":"Black Hole Core","cost":220,"kind":"cast","rarity":"legendary"},
+            {"id":"flamethrower_arc","name":"Flamethrower Arc","cost":150,"kind":"passive","rarity":"rare"},
+            {"id":"frost_mine","name":"Frost Mine","cost":160,"kind":"cast","rarity":"rare"},
+            {"id":"shield_drone","name":"Shield Drone","cost":170,"kind":"toggle","rarity":"epic"},
+            {"id":"vampiric_rounds","name":"Vampiric Rounds","cost":165,"kind":"passive","rarity":"epic"},
+            {"id":"shockwave_stomp","name":"Shockwave Stomp","cost":175,"kind":"passive","rarity":"epic"},
+            {"id":"orbital_laser","name":"Orbital Laser","cost":210,"kind":"passive","rarity":"legendary"},
+            {"id":"decoy_hologram","name":"Decoy Hologram","cost":155,"kind":"cast","rarity":"rare"},
+            {"id":"execution_protocol","name":"Execution Protocol","cost":165,"kind":"passive","rarity":"epic"},
+            {"id":"bounty_scanner","name":"Bounty Scanner","cost":145,"kind":"passive","rarity":"rare"},
+            {"id":"cluster_rpg","name":"Cluster RPG","cost":200,"kind":"passive","rarity":"legendary"},
+            {"id":"phoenix_revive","name":"Phoenix Revive","cost":240,"kind":"passive","rarity":"legendary"},
+            {"id":"chain_hook","name":"Chain Hook","cost":165,"kind":"passive","rarity":"epic"},
+            {"id":"thunder_totem","name":"Thunder Totem","cost":185,"kind":"cast","rarity":"epic"},
+            {"id":"overclock_mode","name":"Overclock Mode","cost":195,"kind":"passive","rarity":"legendary"},
         ]
 
         self.descriptions = {
@@ -114,6 +129,11 @@ class Game:
         self.smoke = []
         self.float_texts = []
         self.boss_active = False
+        self.black_holes = []
+        self.frost_mines = []
+        self.decoys = []
+        self.totems = []
+        self.enemy_bullets = []
 
         self.shake_t = 0
         self.shake_mag = 0
@@ -139,6 +159,10 @@ class Game:
             "clone_swarm": 0,
             "auto_turret": 0,
             "rpg_launcher": 0,
+            "black_hole_core": 0,
+            "frost_mine": 0,
+            "decoy_hologram": 0,
+            "thunder_totem": 0,
         }
 
         # base cooldown lengths (reduced by higher levels for cast powers)
@@ -149,6 +173,10 @@ class Game:
             "time_freeze": 280,
             "clone_swarm": 220,
             "auto_turret": 170,
+            "black_hole_core": 300,
+            "frost_mine": 140,
+            "decoy_hologram": 170,
+            "thunder_totem": 200,
         }
 
         # power ownership and runtime
@@ -166,6 +194,16 @@ class Game:
         self.stat_split = False
         self.stat_dash_plus = False
         self.stat_machinegun = 0
+        self.stat_vamp = 0
+        self.stat_exec = 0
+        self.stat_bounty = 0
+        self.stat_cluster = 0
+        self.stat_flamer = 0
+        self.stat_shockwave = 0
+        self.stat_orbital = 0
+        self.stat_hook = 0
+        self.stat_overclock = 0
+        self.phoenix_charge = 0
 
         self.orbit_angle = 0
         self.panel_scroll = 0
@@ -277,6 +315,16 @@ class Game:
         elif pid == "machine_gun":
             self.stat_machinegun += 1
             self.stat_rapid += 1
+        elif pid == "vampiric_rounds": self.stat_vamp += 1
+        elif pid == "execution_protocol": self.stat_exec += 1
+        elif pid == "bounty_scanner": self.stat_bounty += 1
+        elif pid == "cluster_rpg": self.stat_cluster += 1
+        elif pid == "flamethrower_arc": self.stat_flamer += 1
+        elif pid == "shockwave_stomp": self.stat_shockwave += 1
+        elif pid == "orbital_laser": self.stat_orbital += 1
+        elif pid == "chain_hook": self.stat_hook += 1
+        elif pid == "overclock_mode": self.stat_overclock += 1; self.stat_rapid += 1; self.stat_speed += 0.35
+        elif pid == "phoenix_revive": self.phoenix_charge = 1
 
     def cast_power(self, pid, lv):
         if pid == "blood_nova":
@@ -303,6 +351,14 @@ class Game:
         elif pid == "clone_swarm":
             for _ in range(1 + lv // 2):
                 self.clones.append({"x": self.px, "y": self.py, "ttl": 260 + lv*20, "lv": lv})
+        elif pid == "black_hole_core":
+            self.black_holes.append({"x": self.px + self.face_x*100, "y": self.py + self.face_y*100, "t": 120 + lv*12, "r": 90 + lv*10, "lv": lv})
+        elif pid == "frost_mine":
+            self.frost_mines.append({"x": self.px, "y": self.py, "t": 360, "r": 85 + lv*8, "lv": lv})
+        elif pid == "decoy_hologram":
+            self.decoys.append({"x": self.px + random.randint(-80,80), "y": self.py + random.randint(-80,80), "t": 260 + lv*40, "lv": lv})
+        elif pid == "thunder_totem":
+            self.totems.append({"x": self.px, "y": self.py, "t": 320 + lv*40, "lv": lv, "cd": 0})
         elif pid == "rpg_launcher":
             pass
     # ---------- gameplay ----------
@@ -342,15 +398,18 @@ class Game:
 
             # boss wave every 5 waves
             is_boss = (self.wave % 5 == 0 and not self.boss_active)
+            boss_type = None
             if is_boss:
                 hp *= 8
                 size += 20
                 sp *= 0.95
                 variant = "boss"
+                boss_types = ["brute", "summoner", "artillery", "vampire", "storm"]
+                boss_type = boss_types[(self.wave // 5) % len(boss_types)]
                 self.boss_active = True
-                self.float_texts.append({"x": WORLD_W//2, "y": 90, "t": 90, "txt": f"BOSS WAVE {self.wave}!", "c": "#ffcc66"})
+                self.float_texts.append({"x": WORLD_W//2, "y": 90, "t": 90, "txt": f"BOSS WAVE {self.wave}! {boss_type.upper()}", "c": "#ffcc66"})
 
-            self.enemies.append({"x": x, "y": y, "hp": hp, "max": hp, "sp": sp, "s": size, "shape": shapes[tier], "c": colors[tier], "variant": variant, "shoot_cd": random.randint(60,120), "boss": is_boss})
+            self.enemies.append({"x": x, "y": y, "hp": hp, "max": hp, "sp": sp, "s": size, "shape": shapes[tier], "c": colors[tier], "variant": variant, "shoot_cd": random.randint(60,120), "boss": is_boss, "boss_type": boss_type, "skill_cd": random.randint(80,140)})
 
             self.spawn_ms = max(180, SPAWN_MS - self.wave * 25)
 
@@ -484,10 +543,102 @@ class Game:
                     if math.hypot(en["x"] - bx, en["y"] - by) <= en["s"] / 2 + 11 + lv:
                         en["hp"] -= 5 + lv*1.2
 
+        if "shield_drone" in self.active_toggles:
+            lv = self.power_lv.get("shield_drone", 1)
+            sr = 34 + lv * 5
+            for en in self.enemies:
+                if math.hypot(en["x"]-self.px, en["y"]-self.py) <= sr + en["s"]/2:
+                    en["hp"] -= 3 + lv
+
         # laser gun upgrade from damage core levels
         if self.power_lv.get("damage_core", 0) >= 2 and self.enemies:
             t = self.nearest_enemy()
             t["hp"] -= 1.0 + self.power_lv.get("damage_core",0)*0.5
+
+        # flamethrower arc
+        if self.stat_flamer > 0:
+            for en in self.enemies:
+                dx, dy = en["x"] - self.px, en["y"] - self.py
+                d = math.hypot(dx, dy) + 1e-6
+                if d < 115 + self.stat_flamer * 18:
+                    ndx, ndy = dx / d, dy / d
+                    dot = ndx * self.face_x + ndy * self.face_y
+                    if dot > 0.58:
+                        en["hp"] -= 0.7 + self.stat_flamer * 0.35
+
+        # shockwave stomp pulse
+        if self.stat_shockwave > 0 and self.frame % max(45, 150 - self.stat_shockwave*18) == 0:
+            rr = 90 + self.stat_shockwave * 16
+            for en in self.enemies:
+                if math.hypot(en["x"]-self.px, en["y"]-self.py) <= rr:
+                    en["hp"] -= 22 + self.stat_shockwave * 8
+
+        # chain hook
+        if self.stat_hook > 0 and self.enemies and self.frame % max(40, 120 - self.stat_hook*15) == 0:
+            t = self.nearest_enemy()
+            if t:
+                t["x"] += (self.px - t["x"]) * 0.35
+                t["y"] += (self.py - t["y"]) * 0.35
+                t["hp"] -= 8 + self.stat_hook * 4
+
+        # orbital laser sweep
+        if self.stat_orbital > 0 and self.frame % max(70, 170 - self.stat_orbital*16) == 0:
+            yline = random.randint(30, HEIGHT-30)
+            for en in self.enemies:
+                if abs(en["y"] - yline) < 16:
+                    en["hp"] -= 40 + self.stat_orbital * 11
+            self.float_texts.append({"x": WORLD_W//2, "y": yline, "t": 18, "txt": "LASER", "c": "#ff6666"})
+
+        # black holes
+        alive_bh = []
+        for bh in self.black_holes:
+            bh["t"] -= 1
+            for en in self.enemies:
+                dx, dy = bh["x"] - en["x"], bh["y"] - en["y"]
+                d = math.hypot(dx, dy) + 1e-6
+                if d < bh["r"]:
+                    pull = (bh["r"] - d) * 0.02
+                    en["x"] += dx / d * pull
+                    en["y"] += dy / d * pull
+                    en["hp"] -= 0.9 + bh["lv"] * 0.25
+            if bh["t"] > 0:
+                alive_bh.append(bh)
+        self.black_holes = alive_bh
+
+        # frost mines
+        alive_mines = []
+        for m in self.frost_mines:
+            m["t"] -= 1
+            triggered = False
+            for en in self.enemies:
+                if math.hypot(en["x"]-m["x"], en["y"]-m["y"]) <= 18:
+                    for e2 in self.enemies:
+                        if math.hypot(e2["x"]-m["x"], e2["y"]-m["y"]) <= m["r"]:
+                            e2["hp"] -= 25 + m["lv"] * 9
+                            e2["sp"] *= 0.8
+                    triggered = True
+                    break
+            if m["t"] > 0 and not triggered:
+                alive_mines.append(m)
+        self.frost_mines = alive_mines
+
+        # thunder totems
+        alive_totems = []
+        for t in self.totems:
+            t["t"] -= 1
+            t["cd"] = max(0, t["cd"] - 1)
+            if t["cd"] == 0 and self.enemies:
+                targets = sorted(self.enemies, key=lambda e: (e["x"]-t["x"])**2 + (e["y"]-t["y"])**2)[:(1 + t["lv"]//2)]
+                for z in targets:
+                    if math.hypot(z["x"]-t["x"], z["y"]-t["y"]) < 240:
+                        z["hp"] -= 20 + t["lv"] * 8
+                t["cd"] = max(15, 55 - t["lv"]*4)
+            if t["t"] > 0:
+                alive_totems.append(t)
+        self.totems = alive_totems
+
+        # decoys
+        self.decoys = [d for d in self.decoys if (d.update({"t": d["t"]-1}) or d["t"] > 0)]
 
         # auto-fire
         self.fire()
@@ -502,7 +653,12 @@ class Game:
             hit = False
             for en in self.enemies:
                 if math.hypot(en["x"] - b["x"], en["y"] - b["y"]) <= en["s"] / 2 + b["r"]:
-                    en["hp"] -= BASE_BULLET_DMG + self.stat_damage
+                    dmg = BASE_BULLET_DMG + self.stat_damage
+                    if self.stat_exec > 0 and en["hp"] < en["max"] * 0.3:
+                        dmg += 10 + self.stat_exec * 5
+                    en["hp"] -= dmg
+                    if self.stat_vamp > 0:
+                        self.hp = min(self.max_hp, self.hp + 0.15 * self.stat_vamp)
                     if b["pierce"] > 0:
                         b["pierce"] -= 1
                     else:
@@ -598,6 +754,16 @@ class Game:
                     for aoe in self.enemies:
                         if math.hypot(aoe["x"]-r["x"], aoe["y"]-r["y"]) < r["r"]:
                             aoe["hp"] -= r["dmg"]
+
+                    if self.stat_cluster > 0:
+                        for _ in range(2 + self.stat_cluster):
+                            ang = random.random() * math.pi * 2
+                            bx = r["x"] + math.cos(ang) * random.randint(20, 55)
+                            by = r["y"] + math.sin(ang) * random.randint(20, 55)
+                            self.explosions.append({"x": bx, "y": by, "t": 10, "max": 10, "r": 26})
+                            for aoe2 in self.enemies:
+                                if math.hypot(aoe2["x"]-bx, aoe2["y"]-by) < 30:
+                                    aoe2["hp"] -= 20 + self.stat_cluster * 8
                     hit = True
                     break
             if not hit:
@@ -632,7 +798,13 @@ class Game:
         # enemies
         alive_e = []
         for en in self.enemies:
-            dx, dy = self.px - en["x"], self.py - en["y"]
+            tx, ty = self.px, self.py
+            if self.decoys:
+                d0 = min(self.decoys, key=lambda q: (q["x"]-en["x"])**2 + (q["y"]-en["y"])**2)
+                if random.random() < 0.65:
+                    tx, ty = d0["x"], d0["y"]
+
+            dx, dy = tx - en["x"], ty - en["y"]
             d = math.hypot(dx, dy) + 1e-6
             mul = 0.25 if self.freeze_t > 0 else 1.0
 
@@ -652,6 +824,33 @@ class Game:
                     en["shoot_cd"] = random.randint(65, 105)
                     self.float_texts.append({"x": self.px, "y": self.py-18, "t": 26, "txt": "-1", "c": "#ff8f8f"})
 
+            # boss skills
+            if en.get("boss"):
+                en["skill_cd"] = max(0, en.get("skill_cd", 0) - 1)
+                if en["skill_cd"] == 0:
+                    bt = en.get("boss_type")
+                    if bt == "brute":
+                        if d < 200:
+                            self.hp -= 8
+                            self.shake_t = max(self.shake_t, 10)
+                            self.shake_mag = max(self.shake_mag, 10)
+                    elif bt == "summoner":
+                        for _ in range(3):
+                            sx = en["x"] + random.randint(-80, 80)
+                            sy = en["y"] + random.randint(-80, 80)
+                            self.enemies.append({"x": sx, "y": sy, "hp": 28 + self.wave*2, "max": 28 + self.wave*2, "sp": 1.8, "s": 18, "shape": "diamond", "c": "#d45cff", "variant": "normal", "shoot_cd": 80, "boss": False, "boss_type": None, "skill_cd": 90})
+                    elif bt == "artillery":
+                        self.meteors.append({"x": self.px, "y": self.py, "t": 28, "max_t": 28, "dmg": 26 + self.wave*2, "r": 60})
+                    elif bt == "vampire":
+                        en["hp"] = min(en["max"], en["hp"] + 45)
+                    elif bt == "storm":
+                        for _ in range(3):
+                            if self.enemies:
+                                z = random.choice(self.enemies)
+                                z["hp"] += 0  # visual chain lightning through existing system style
+                        self.hp -= 4
+                    en["skill_cd"] = random.randint(90, 150)
+
             if d <= en["s"] / 2 + PLAYER_SIZE / 2:
                 self.hp -= 0.45
 
@@ -661,8 +860,11 @@ class Game:
 
             if en["hp"] <= 0:
                 self.kills += 1
-                self.coins += 14 if en.get("boss") else 8
-                self.float_texts.append({"x": en["x"], "y": en["y"]-10, "t": 34, "txt": "+" + str(14 if en.get("boss") else 8), "c": "#ffe066"})
+                base_coin = 14 if en.get("boss") else 8
+                if self.stat_bounty > 0 and (en.get("boss") or en.get("variant") in ["tank", "shooter"]):
+                    base_coin += 3 + self.stat_bounty
+                self.coins += base_coin
+                self.float_texts.append({"x": en["x"], "y": en["y"]-10, "t": 34, "txt": "+" + str(base_coin), "c": "#ffe066"})
                 if en.get("boss"):
                     self.boss_active = False
                     self.shake_t = max(self.shake_t, 14)
@@ -695,7 +897,7 @@ class Game:
         self.drops = keep
 
         # auto-cast owned cast powers when ready (no click needed)
-        for pid in ["meteor_drop", "blood_nova", "chain_lightning", "time_freeze", "clone_swarm", "auto_turret"]:
+        for pid in ["meteor_drop", "blood_nova", "chain_lightning", "time_freeze", "clone_swarm", "auto_turret", "black_hole_core", "frost_mine", "decoy_hologram", "thunder_totem"]:
             lv = self.power_lv.get(pid, 0)
             if lv > 0 and self.cooldowns.get(pid, 0) <= 0:
                 self.cast_power(pid, lv)
@@ -715,9 +917,16 @@ class Game:
         self.wave = 1 + self.kills // 15
 
         if self.hp <= 0:
-            self.hp = 0
-            self.running = False
-            self.game_over = True
+            if self.phoenix_charge > 0:
+                self.phoenix_charge = 0
+                self.hp = self.max_hp * 0.55
+                self.shake_t = max(self.shake_t, 14)
+                self.shake_mag = max(self.shake_mag, 10)
+                self.float_texts.append({"x": self.px, "y": self.py-20, "t": 60, "txt": "PHOENIX!", "c": "#ffb347"})
+            else:
+                self.hp = 0
+                self.running = False
+                self.game_over = True
 
     # ---------- draw ----------
     def draw_enemy(self, en):
@@ -875,6 +1084,19 @@ class Game:
         for cl in self.clones:
             c.create_rectangle(cl["x"]-7, cl["y"]-7, cl["x"]+7, cl["y"]+7, fill="#7cefff", outline="#d8fbff")
 
+        for d in self.decoys:
+            c.create_rectangle(d["x"]-9, d["y"]-9, d["x"]+9, d["y"]+9, fill="#7bf0ff", outline="#d8ffff", dash=(2,2))
+
+        for bh in self.black_holes:
+            c.create_oval(bh["x"]-bh["r"], bh["y"]-bh["r"], bh["x"]+bh["r"], bh["y"]+bh["r"], outline="#8a6bff", width=1)
+            c.create_oval(bh["x"]-10, bh["y"]-10, bh["x"]+10, bh["y"]+10, fill="#2c1655", outline="#bda6ff")
+
+        for m0 in self.frost_mines:
+            c.create_oval(m0["x"]-8, m0["y"]-8, m0["x"]+8, m0["y"]+8, fill="#9fd6ff", outline="#e7f4ff")
+
+        for tt in self.totems:
+            c.create_rectangle(tt["x"]-8, tt["y"]-14, tt["x"]+8, tt["y"]+14, fill="#c7a36b", outline="#ffe6b8")
+
         for m in self.meteors:
             rr = m["r"] * (m["t"]/m["max_t"])
             c.create_oval(m["x"]-rr, m["y"]-rr, m["x"]+rr, m["y"]+rr, outline="#ff4b4b", width=2)
@@ -936,6 +1158,11 @@ class Game:
                 a = self.orbit_angle + i * (2 * math.pi / 3)
                 bx, by = self.px + math.cos(a) * orbit_r, self.py + math.sin(a) * orbit_r
                 c.create_oval(bx-6, by-6, bx+6, by+6, fill="#c9a3ff", outline="#f0e0ff")
+
+        if "shield_drone" in self.active_toggles:
+            lv = self.power_lv.get("shield_drone",1)
+            rr = 34 + lv * 5
+            c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#8fe6ff", width=2)
 
         if self.power_lv.get("damage_core",0) >= 2 and self.enemies:
             t = self.nearest_enemy()
