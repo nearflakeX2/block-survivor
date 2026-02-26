@@ -637,6 +637,13 @@ class Game:
                 keep.append(d)
         self.drops = keep
 
+        # auto-cast owned cast powers when ready (no click needed)
+        for pid in ["meteor_drop", "blood_nova", "chain_lightning", "time_freeze", "clone_swarm", "auto_turret"]:
+            lv = self.power_lv.get(pid, 0)
+            if lv > 0 and self.cooldowns.get(pid, 0) <= 0:
+                self.cast_power(pid, lv)
+                self.cooldowns[pid] = self.get_cooldown_max(pid, lv)
+
         # timers/stats
         self.shoot_cd = max(0, self.shoot_cd - 1)
         self.dash_cd = max(0, self.dash_cd - 1)
