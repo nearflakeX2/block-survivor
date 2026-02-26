@@ -59,6 +59,7 @@ class Game:
             {"id":"split_shot","name":"Split Shot","cost":170,"kind":"passive"},
             {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast"},
             {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive"},
+            {"id":"machine_gun","name":"Machine Gun","cost":170,"kind":"passive"},
         ]
 
         self.descriptions = {
@@ -82,6 +83,7 @@ class Game:
             "split_shot":"More spread strength.",
             "clone_swarm":"Spawns attacking clones.",
             "rpg_launcher":"Also fires rockets while shooting bullets.",
+            "machine_gun":"Huge fire-rate boost and extra bullet stream.",
         }
 
     def reset(self):
@@ -103,6 +105,7 @@ class Game:
         self.turrets = []
         self.turret_bullets = []
         self.meteors = []
+        self.explosions = []
         self.clones = []
         self.rockets = []
 
@@ -132,6 +135,7 @@ class Game:
         self.stat_ricochet = False
         self.stat_split = False
         self.stat_dash_plus = False
+        self.stat_machinegun = 0
 
         self.orbit_angle = 0
         self.panel_scroll = 0
@@ -218,6 +222,9 @@ class Game:
         elif pid == "blade_dash_plus": self.stat_dash_plus = True
         elif pid == "rpg_launcher":
             pass
+        elif pid == "machine_gun":
+            self.stat_machinegun += 1
+            self.stat_rapid += 1
 
     def cast_power(self, pid, lv):
         if pid == "blood_nova":
@@ -229,7 +236,8 @@ class Game:
         elif pid == "time_freeze":
             self.freeze_t = max(self.freeze_t, 80 + lv * 30)
         elif pid == "auto_turret":
-            self.turrets.append({"x": self.px, "y": self.py, "ttl": 280 + lv * 70, "cd": 0, "lv": lv, "hp": 50 + lv*25, "max": 50 + lv*25})
+            # turret now stays until destroyed (no ttl)
+            self.turrets.append({"x": self.px, "y": self.py, "cd": 0, "lv": lv, "hp": 70 + lv*30, "max": 70 + lv*30})
         elif pid == "chain_lightning":
             targets = sorted(self.enemies, key=lambda e: (e["x"]-self.px)**2 + (e["y"]-self.py)**2)[:(3 + lv)]
             dmg = 35 + lv * 12
@@ -309,6 +317,14 @@ class Game:
             a = base + s
             sp = BASE_BULLET_SPEED + self.stat_damage * 0.04
             self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": self.power_lv.get("ricochet_shot",0)})
+
+        # machine gun extra stream bullets with slight random spread
+        if self.stat_machinegun > 0:
+            for _ in range(self.stat_machinegun):
+                j = random.uniform(-0.12, 0.12)
+                a = base + j
+                sp = BASE_BULLET_SPEED + 1.6 + self.stat_machinegun * 0.3
+                self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
 
         # RPG launcher shoots rockets in addition to bullets
         rpg_lv = self.power_lv.get("rpg_launcher", 0)
@@ -418,9 +434,8 @@ class Game:
         # turrets (visible bullets)
         alive_t = []
         for t in self.turrets:
-            t["ttl"] -= 1
             t["cd"] = max(0, t["cd"] - 1)
-            if t["ttl"] <= 0 or t["hp"] <= 0:
+            if t["hp"] <= 0:
                 continue
             if self.enemies and t["cd"] == 0:
                 target = min(self.enemies, key=lambda e: (e["x"] - t["x"])**2 + (e["y"] - t["y"])**2)
@@ -456,6 +471,7 @@ class Game:
         for m in self.meteors:
             m["t"] -= 1
             if m["t"] <= 0:
+                self.explosions.append({"x": m["x"], "y": m["y"], "t": 16, "max": 16, "r": m["r"]})
                 for en in self.enemies:
                     if math.hypot(en["x"] - m["x"], en["y"] - m["y"]) < m["r"]:
                         en["hp"] -= m["dmg"]
@@ -490,6 +506,7 @@ class Game:
             hit = False
             for en in self.enemies:
                 if math.hypot(en["x"]-r["x"], en["y"]-r["y"]) <= en["s"]/2 + 7:
+                    self.explosions.append({"x": r["x"], "y": r["y"], "t": 18, "max": 18, "r": r["r"] + 24})
                     for aoe in self.enemies:
                         if math.hypot(aoe["x"]-r["x"], aoe["y"]-r["y"]) < r["r"]:
                             aoe["hp"] -= r["dmg"]
@@ -498,6 +515,14 @@ class Game:
             if not hit:
                 alive_r.append(r)
         self.rockets = alive_r
+
+        # explosion visuals timer
+        alive_x = []
+        for ex in self.explosions:
+            ex["t"] -= 1
+            if ex["t"] > 0:
+                alive_x.append(ex)
+        self.explosions = alive_x
 
         # enemies
         alive_e = []
@@ -657,6 +682,12 @@ class Game:
         for m in self.meteors:
             rr = m["r"] * (m["t"]/m["max_t"])
             c.create_oval(m["x"]-rr, m["y"]-rr, m["x"]+rr, m["y"]+rr, outline="#ff4b4b", width=2)
+
+        for ex in self.explosions:
+            p = ex["t"] / ex["max"]
+            rr = ex["r"] * (1 - p*0.15)
+            c.create_oval(ex["x"]-rr, ex["y"]-rr, ex["x"]+rr, ex["y"]+rr, fill="#ff7a44", outline="#ffe2b8", width=3)
+            c.create_oval(ex["x"]-rr*0.6, ex["y"]-rr*0.6, ex["x"]+rr*0.6, ex["y"]+rr*0.6, fill="#ffd27a", outline="")
 
         for en in self.enemies:
             self.draw_enemy(en)
