@@ -77,6 +77,7 @@ class Game:
             {"id":"chain_hook","name":"Chain Hook","cost":165,"kind":"passive","rarity":"epic"},
             {"id":"thunder_totem","name":"Thunder Totem","cost":185,"kind":"cast","rarity":"epic"},
             {"id":"overclock_mode","name":"Overclock Mode","cost":195,"kind":"passive","rarity":"legendary"},
+            {"id":"nuke_mine","name":"Nuke Mine","cost":260,"kind":"passive","rarity":"legendary"},
         ]
 
         self.descriptions = {
@@ -169,6 +170,7 @@ class Game:
             "orbital_laser": 0,
             "chain_hook": 0,
             "shield_drone": 0,
+            "nuke_mine": 0,
         }
 
         # base cooldown lengths (reduced by higher levels for cast powers)
@@ -188,6 +190,7 @@ class Game:
             "orbital_laser": 170,
             "chain_hook": 120,
             "shield_drone": 22,
+            "nuke_mine": 1800,
         }
 
         # power ownership and runtime
@@ -215,6 +218,7 @@ class Game:
         self.stat_hook = 0
         self.stat_overclock = 0
         self.phoenix_charge = 0
+        self.stat_nuke = 0
 
         self.orbit_angle = 0
         self.panel_scroll = 0
@@ -229,6 +233,22 @@ class Game:
         if k == "p" and self.running and not self.game_over:
             self.paused = not self.paused
             self.banner = "Paused" if self.paused else "Resumed"
+
+        # quick test controls while paused
+        if self.paused and not self.game_over:
+            if k == "1":
+                self.coins += 200
+                self.banner = "TEST: +200 coins"
+            elif k == "2":
+                self.hp = self.max_hp
+                self.banner = "TEST: full heal"
+            elif k == "3":
+                self.wave += 1
+                self.banner = f"TEST: wave {self.wave}"
+            elif k == "4":
+                self.enemies.clear()
+                self.banner = "TEST: cleared enemies"
+
         if k == "space" and self.running and not self.paused:
             self.start_dash()
 
@@ -253,10 +273,18 @@ class Game:
         # identify clicked power row
         panel_x = WORLD_W + 10
         panel_w = WIDTH - WORLD_W - 20
-        row_h = 28
+        row_h = 34
         y0 = 110
 
         if not (panel_x <= e.x <= panel_x + panel_w):
+            return
+
+        # always-visible scroll buttons
+        if y0 - 34 <= e.y <= y0 - 6:
+            self.panel_scroll = max(0, self.panel_scroll - 1)
+            return
+        if HEIGHT - 34 <= e.y <= HEIGHT - 6:
+            self.panel_scroll = min(max(0, len(self.powers) - 1), self.panel_scroll + 1)
             return
 
         idx_in_view = (e.y - y0) // row_h
@@ -336,6 +364,7 @@ class Game:
         elif pid == "chain_hook": self.stat_hook += 1
         elif pid == "overclock_mode": self.stat_overclock += 1; self.stat_rapid += 1; self.stat_speed += 0.35
         elif pid == "phoenix_revive": self.phoenix_charge = 1
+        elif pid == "nuke_mine": self.stat_nuke += 1
 
     def cast_power(self, pid, lv):
         if pid == "blood_nova":
@@ -585,7 +614,7 @@ class Game:
                     dot = ndx * self.face_x + ndy * self.face_y
                     if dot > 0.58:
                         en["hp"] -= 0.7 + self.stat_flamer * 0.35
-            self.fx["flame"].append({"x": self.px, "y": self.py, "fx": self.face_x, "fy": self.face_y, "t": 8})
+            self.fx["flame"].append({"x": self.px, "y": self.py, "fx": self.face_x, "fy": self.face_y, "t": 14})
             self.cooldowns["flamethrower_arc"] = self.get_cooldown_max("flamethrower_arc", self.stat_flamer)
 
         # shockwave stomp pulse
@@ -616,6 +645,20 @@ class Game:
             self.fx["laser"].append({"y": yline, "t": 14})
             self.float_texts.append({"x": WORLD_W//2, "y": yline, "t": 18, "txt": "LASER", "c": "#ff6666"})
             self.cooldowns["orbital_laser"] = self.get_cooldown_max("orbital_laser", self.stat_orbital)
+
+        # nuke mine: every 30s, huge blast that wipes roughly half the map
+        if self.stat_nuke > 0 and self.cooldowns["nuke_mine"] <= 0:
+            nx = random.randint(120, WORLD_W - 120)
+            ny = random.randint(120, HEIGHT - 120)
+            nr = int(min(WORLD_W, HEIGHT) * 0.5)
+            self.explosions.append({"x": nx, "y": ny, "t": 28, "max": 28, "r": nr})
+            for en in self.enemies:
+                if math.hypot(en["x"] - nx, en["y"] - ny) <= nr:
+                    en["hp"] -= 9999
+            self.shake_t = max(self.shake_t, 16)
+            self.shake_mag = max(self.shake_mag, 12)
+            self.float_texts.append({"x": nx, "y": ny - 20, "t": 45, "txt": "NUKE", "c": "#ff5252"})
+            self.cooldowns["nuke_mine"] = self.get_cooldown_max("nuke_mine", self.stat_nuke)
 
         # black holes
         alive_bh = []
@@ -984,9 +1027,9 @@ class Game:
         c.create_rectangle(WORLD_W, 0, WIDTH, HEIGHT, fill="#0a0a12", outline="#2b2b46", width=2)
         c.create_text(WORLD_W + 130, 18, text="POWERS (click)", fill="#efe8ff", font=("Consolas", 14, "bold"))
 
-        row_h = 28
+        row_h = 34
         y0 = 110
-        visible = (HEIGHT - y0 - 20) // row_h
+        visible = (HEIGHT - y0 - 50) // row_h
 
         # info
         c.create_text(WORLD_W + 10, 44, anchor="nw", fill="#d7d7ff", font=("Consolas", 10),
@@ -1026,6 +1069,21 @@ class Game:
             c.create_text(WORLD_W + 16, y + 14, anchor="w", fill="#f0f0ff", font=("Consolas", 10, "bold"), text=p["name"])
             c.create_text(WIDTH - 18, y + 14, anchor="e", fill="#b8ffd0" if active else "#f8d9a8", font=("Consolas", 9, "bold"), text=status)
 
+        # scroll controls + tiny scrollbar
+        c.create_rectangle(WORLD_W + 10, y0 - 34, WIDTH - 10, y0 - 6, fill="#1a1a2f", outline="#3d3d60")
+        c.create_text(WORLD_W + 130, y0 - 20, text="▲ Scroll Up", fill="#d6dbff", font=("Consolas", 10, "bold"))
+        c.create_rectangle(WORLD_W + 10, HEIGHT - 34, WIDTH - 10, HEIGHT - 6, fill="#1a1a2f", outline="#3d3d60")
+        c.create_text(WORLD_W + 130, HEIGHT - 20, text="▼ Scroll Down", fill="#d6dbff", font=("Consolas", 10, "bold"))
+
+        if len(self.powers) > visible:
+            track_y1, track_y2 = y0, HEIGHT - 40
+            c.create_rectangle(WIDTH - 16, track_y1, WIDTH - 12, track_y2, fill="#222", outline="")
+            thumb_h = max(20, (visible / len(self.powers)) * (track_y2 - track_y1))
+            max_scroll = len(self.powers) - visible
+            ratio = 0 if max_scroll <= 0 else self.panel_scroll / max_scroll
+            ty = track_y1 + ratio * ((track_y2 - track_y1) - thumb_h)
+            c.create_rectangle(WIDTH - 17, ty, WIDTH - 11, ty + thumb_h, fill="#6c7cff", outline="")
+
         # hovered/selected description not tracked; show tip
         c.create_text(WORLD_W + 10, HEIGHT - 50, anchor="nw", fill="#bfc3ff", font=("Consolas", 9),
                       text="Every power can be leveled.\nRight value shows next upgrade cost.")
@@ -1057,6 +1115,7 @@ class Game:
             ("orbital_laser", "Laser", "#ff6666"),
             ("chain_hook", "Hook", "#d6d6d6"),
             ("shield_drone", "Shield", "#8fe6ff"),
+            ("nuke_mine", "Nuke", "#ff5252"),
         ]:
             if self.power_lv.get(pid, 0) > 0:
                 max_cd = self.get_cooldown_max(pid, self.power_lv.get(pid, 1))
@@ -1166,10 +1225,18 @@ class Game:
             rr = f["r"] * (1 - p*0.5)
             c.create_oval(f["x"]-rr, f["y"]-rr, f["x"]+rr, f["y"]+rr, outline="#ffc87a", width=2)
         for f in self.fx["flame"]:
-            for i in range(4):
-                fx = f["x"] + f["fx"] * (30 + i*20)
-                fy = f["y"] + f["fy"] * (30 + i*20)
-                c.create_oval(fx-5, fy-5, fx+5, fy+5, fill="#ff944d", outline="")
+            px, py = -f["fy"], f["fx"]
+            front = 135
+            spread = 40
+            x1 = f["x"] + f["fx"] * 20 + px * 8
+            y1 = f["y"] + f["fy"] * 20 + py * 8
+            x2 = f["x"] + f["fx"] * front + px * spread
+            y2 = f["y"] + f["fy"] * front + py * spread
+            x3 = f["x"] + f["fx"] * front - px * spread
+            y3 = f["y"] + f["fy"] * front - py * spread
+            x4 = f["x"] + f["fx"] * 20 - px * 8
+            y4 = f["y"] + f["fy"] * 20 - py * 8
+            c.create_polygon(x1, y1, x2, y2, x3, y3, x4, y4, fill="#ff8a3d", outline="#ffd08a", stipple="gray25")
 
         for en in self.enemies:
             self.draw_enemy(en)
@@ -1241,7 +1308,8 @@ class Game:
         c.create_text((x1+x2)/2, (y1+y2)/2, text="PAUSE (P)" if not self.paused else "RESUME (P)", fill="#e9f2ff", font=("Consolas", 9, "bold"))
 
         if self.paused and not self.game_over:
-            c.create_text(WORLD_W//2, HEIGHT//2, text="PAUSED", fill="#d7e8ff", font=("Consolas", 34, "bold"))
+            c.create_text(WORLD_W//2, HEIGHT//2-20, text="PAUSED", fill="#d7e8ff", font=("Consolas", 34, "bold"))
+            c.create_text(WORLD_W//2, HEIGHT//2+20, text="TEST: 1=+Coins  2=Heal  3=Wave+  4=Clear", fill="#c9d8f0", font=("Consolas", 11, "bold"))
 
         if self.game_over:
             c.create_text(WORLD_W//2, HEIGHT//2, text="GAME OVER\nPress R", fill="#ffd2a6", font=("Consolas", 30, "bold"), justify="center")
