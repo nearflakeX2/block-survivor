@@ -270,11 +270,16 @@ class Game:
     def on_key_up(self, e):
         self.keys.discard(e.keysym.lower())
 
+    def panel_powers(self):
+        if self.mode == "Hardcore":
+            return [p for p in self.powers if p["id"] in self.owned]
+        return self.powers
+
     def on_wheel(self, e):
         # scroll power list
         delta = -1 if e.delta > 0 else 1
         visible = max(1, (HEIGHT - 110 - 50) // 34)
-        max_scroll = max(0, len(self.powers) - visible)
+        max_scroll = max(0, len(self.panel_powers()) - visible)
         self.panel_scroll = max(0, min(max_scroll, self.panel_scroll + delta))
 
     def on_click(self, e):
@@ -313,6 +318,7 @@ class Game:
         panel_w = WIDTH - WORLD_W - 20
         row_h = 34
         y0 = 110
+        panel_list = self.panel_powers()
 
         if not (panel_x <= e.x <= panel_x + panel_w):
             return
@@ -323,7 +329,7 @@ class Game:
             return
         if HEIGHT - 34 <= e.y <= HEIGHT - 6:
             visible = max(1, (HEIGHT - 110 - 50) // 34)
-            max_scroll = max(0, len(self.powers) - visible)
+            max_scroll = max(0, len(panel_list) - visible)
             self.panel_scroll = min(max_scroll, self.panel_scroll + 1)
             return
 
@@ -331,10 +337,10 @@ class Game:
         if idx_in_view < 0:
             return
         idx = self.panel_scroll + idx_in_view
-        if idx >= len(self.powers):
+        if idx >= len(panel_list):
             return
 
-        self.buy_or_use_power(self.powers[idx])
+        self.buy_or_use_power(panel_list[idx])
 
     # ---------- power system ----------
     def power_cost(self, p):
@@ -1055,7 +1061,10 @@ class Game:
 
     # ---------- draw ----------
     def draw_enemy(self, en):
-        x, y, s = en["x"], en["y"], en["s"]
+        tx = getattr(self, "_tx", lambda v: v)
+        ty = getattr(self, "_ty", lambda v: v)
+        ts = getattr(self, "_ts", lambda v: v)
+        x, y, s = tx(en["x"]), ty(en["y"]), ts(en["s"])
         x1, y1, x2, y2 = x - s/2, y - s/2, x + s/2, y + s/2
         shape = en["shape"]
         c = en["c"]
@@ -1080,6 +1089,7 @@ class Game:
         row_h = 34
         y0 = 110
         visible = (HEIGHT - y0 - 50) // row_h
+        panel_list = self.panel_powers()
 
         # info
         c.create_text(WORLD_W + 10, 44, anchor="nw", fill="#d7d7ff", font=("Consolas", 10),
@@ -1087,9 +1097,9 @@ class Game:
 
         for i in range(visible):
             idx = self.panel_scroll + i
-            if idx >= len(self.powers):
+            if idx >= len(panel_list):
                 break
-            p = self.powers[idx]
+            p = panel_list[idx]
             y = y0 + i * row_h
 
             owned = p["id"] in self.owned
@@ -1125,11 +1135,11 @@ class Game:
         c.create_rectangle(WORLD_W + 10, HEIGHT - 34, WIDTH - 10, HEIGHT - 6, fill="#1a1a2f", outline="#3d3d60")
         c.create_text(WORLD_W + 130, HEIGHT - 20, text="▼ Scroll Down", fill="#d6dbff", font=("Consolas", 10, "bold"))
 
-        if len(self.powers) > visible:
+        if len(panel_list) > visible:
             track_y1, track_y2 = y0, HEIGHT - 40
             c.create_rectangle(WIDTH - 16, track_y1, WIDTH - 12, track_y2, fill="#222", outline="")
-            thumb_h = max(20, (visible / len(self.powers)) * (track_y2 - track_y1))
-            max_scroll = len(self.powers) - visible
+            thumb_h = max(20, (visible / len(panel_list)) * (track_y2 - track_y1))
+            max_scroll = len(panel_list) - visible
             ratio = 0 if max_scroll <= 0 else self.panel_scroll / max_scroll
             ty = track_y1 + ratio * ((track_y2 - track_y1) - thumb_h)
             c.create_rectangle(WIDTH - 17, ty, WIDTH - 11, ty + thumb_h, fill="#6c7cff", outline="")
@@ -1207,6 +1217,16 @@ class Game:
 
         # world bg/grid
         c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#101010", outline="")
+
+        cam_zoom = 1.0
+        if self.mode == "Hardcore":
+            cam_zoom = max(0.55, 1.0 - max(0, self.wave - 1) * 0.012)
+
+        cx, cy = self.px, self.py
+        def tx(x): return cx + (x - cx) * cam_zoom
+        def ty(y): return cy + (y - cy) * cam_zoom
+        def ts(v): return max(1.0, v * cam_zoom)
+        self._tx, self._ty, self._ts = tx, ty, ts
         for x in range(0, WORLD_W, 40):
             c.create_line(x, 0, x, HEIGHT, fill="#181818")
         for y in range(0, HEIGHT, 40):
@@ -1214,11 +1234,14 @@ class Game:
 
         # world entities
         for d in self.drops:
-            c.create_oval(d["x"]-5, d["y"]-5, d["x"]+5, d["y"]+5, fill="#ffe066", outline="")
+            x, y = tx(d["x"]), ty(d["y"])
+            r = ts(5)
+            c.create_oval(x-r, y-r, x+r, y+r, fill="#ffe066", outline="")
 
         for b in self.bullets:
-            r = b["r"]
-            c.create_oval(b["x"]-r, b["y"]-r, b["x"]+r, b["y"]+r, fill="#ffd84d", outline="")
+            x, y = tx(b["x"]), ty(b["y"])
+            r = ts(b["r"])
+            c.create_oval(x-r, y-r, x+r, y+r, fill="#ffd84d", outline="")
 
         for s in self.smoke:
             p = s["t"] / s["max"]
@@ -1228,22 +1251,26 @@ class Game:
             c.create_oval(s["x"]-rr, s["y"]-rr, s["x"]+rr, s["y"]+rr, fill=color, outline="")
 
         for rb in self.rockets:
-            c.create_oval(rb["x"]-6, rb["y"]-6, rb["x"]+6, rb["y"]+6, fill="#ff8855", outline="#ffd9c7")
-            c.create_oval(rb["x"]-2, rb["y"]-2, rb["x"]+2, rb["y"]+2, fill="#ffe6b3", outline="")
+            x, y = tx(rb["x"]), ty(rb["y"])
+            c.create_oval(x-ts(6), y-ts(6), x+ts(6), y+ts(6), fill="#ff8855", outline="#ffd9c7")
+            c.create_oval(x-ts(2), y-ts(2), x+ts(2), y+ts(2), fill="#ffe6b3", outline="")
 
         for tb in self.turret_bullets:
-            c.create_oval(tb["x"]-3, tb["y"]-3, tb["x"]+3, tb["y"]+3, fill="#9cf5ff", outline="")
+            x, y = tx(tb["x"]), ty(tb["y"])
+            c.create_oval(x-ts(3), y-ts(3), x+ts(3), y+ts(3), fill="#9cf5ff", outline="")
 
         for t in self.turrets:
-            s = 16
-            c.create_rectangle(t["x"]-s/2, t["y"]-s/2, t["x"]+s/2, t["y"]+s/2, fill="#ffdca8", outline="#fff3dd", width=2)
-            # turret hp bar
+            s = ts(16)
+            x, y = tx(t["x"]), ty(t["y"])
+            c.create_rectangle(x-s/2, y-s/2, x+s/2, y+s/2, fill="#ffdca8", outline="#fff3dd", width=2)
             ratio = max(0, t["hp"]) / max(1, t["max"])
-            c.create_rectangle(t["x"]-14, t["y"]-14, t["x"]+14, t["y"]-10, fill="#2b2b2b", outline="")
-            c.create_rectangle(t["x"]-14, t["y"]-14, t["x"]-14+28*ratio, t["y"]-10, fill="#67d67a", outline="")
+            c.create_rectangle(x-ts(14), y-ts(14), x+ts(14), y-ts(10), fill="#2b2b2b", outline="")
+            c.create_rectangle(x-ts(14), y-ts(14), x-ts(14)+ts(28)*ratio, y-ts(10), fill="#67d67a", outline="")
 
         for cl in self.clones:
-            c.create_rectangle(cl["x"]-7, cl["y"]-7, cl["x"]+7, cl["y"]+7, fill="#7cefff", outline="#d8fbff")
+            x, y = tx(cl["x"]), ty(cl["y"])
+            r = ts(7)
+            c.create_rectangle(x-r, y-r, x+r, y+r, fill="#7cefff", outline="#d8fbff")
 
         for d in self.decoys:
             c.create_rectangle(d["x"]-9, d["y"]-9, d["x"]+9, d["y"]+9, fill="#7bf0ff", outline="#d8ffff", dash=(2,2))
@@ -1259,13 +1286,13 @@ class Game:
             c.create_rectangle(tt["x"]-8, tt["y"]-14, tt["x"]+8, tt["y"]+14, fill="#c7a36b", outline="#ffe6b8")
 
         for m in self.meteors:
-            rr = m["r"] * (m["t"]/m["max_t"])
-            c.create_oval(m["x"]-rr, m["y"]-rr, m["x"]+rr, m["y"]+rr, outline="#ff4b4b", width=2)
-            # visible falling meteor core + tail
+            mx, my0 = tx(m["x"]), ty(m["y"])
+            rr = ts(m["r"] * (m["t"]/m["max_t"]))
+            c.create_oval(mx-rr, my0-rr, mx+rr, my0+rr, outline="#ff4b4b", width=2)
             prog = 1 - (m["t"] / m["max_t"])
-            my = m["y"] - 120 + prog * 100
-            c.create_line(m["x"]-12, my-18, m["x"]+2, my-2, fill="#ffb36b", width=3)
-            c.create_oval(m["x"]-7, my-7, m["x"]+7, my+7, fill="#ff8a45", outline="#ffe2ad")
+            my = ty(m["y"] - 120 + prog * 100)
+            c.create_line(mx-ts(12), my-ts(18), mx+ts(2), my-ts(2), fill="#ffb36b", width=3)
+            c.create_oval(mx-ts(7), my-ts(7), mx+ts(7), my+ts(7), fill="#ff8a45", outline="#ffe2ad")
 
         for ex in self.explosions:
             p = ex["t"] / ex["max"]
@@ -1301,13 +1328,13 @@ class Game:
 
         for en in self.enemies:
             self.draw_enemy(en)
-            # enemy hp bar
-            rw = max(16, en["s"])
+            ex, ey, es = tx(en["x"]), ty(en["y"]), ts(en["s"])
+            rw = max(ts(16), es)
             ratio = max(0, en["hp"]) / max(1, en["max"])
-            c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]+rw/2, en["y"]-en["s"]/2-3, fill="#2b2b2b", outline="")
-            c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]-rw/2 + rw*ratio, en["y"]-en["s"]/2-3, fill="#67d67a", outline="")
+            c.create_rectangle(ex-rw/2, ey-es/2-ts(7), ex+rw/2, ey-es/2-ts(3), fill="#2b2b2b", outline="")
+            c.create_rectangle(ex-rw/2, ey-es/2-ts(7), ex-rw/2 + rw*ratio, ey-es/2-ts(3), fill="#67d67a", outline="")
             if en.get("boss"):
-                c.create_text(en["x"], en["y"]-en["s"]/2-16, text="BOSS", fill="#ffcc66", font=("Consolas", 9, "bold"))
+                c.create_text(ex, ey-es/2-ts(16), text="BOSS", fill="#ffcc66", font=("Consolas", 9, "bold"))
 
         # edge indicators for nearby offscreen threats
         for en in self.enemies:
@@ -1317,39 +1344,42 @@ class Game:
                 c.create_oval(ex-4, ey-4, ex+4, ey+4, fill="#ff6363", outline="")
 
         # player
-        h = PLAYER_SIZE / 2
-        c.create_rectangle(self.px-h, self.py-h, self.px+h, self.py+h, fill="#4aa8ff", outline="#cfe8ff", width=2)
-        spear_len = 40 if self.dash_t > 0 else 28
-        c.create_line(self.px, self.py, self.px + self.face_x*spear_len, self.py + self.face_y*spear_len,
+        px, py = tx(self.px), ty(self.py)
+        h = ts(PLAYER_SIZE / 2)
+        c.create_rectangle(px-h, py-h, px+h, py+h, fill="#4aa8ff", outline="#cfe8ff", width=2)
+        spear_len = ts(40 if self.dash_t > 0 else 28)
+        c.create_line(px, py, px + self.face_x*spear_len, py + self.face_y*spear_len,
                       fill="#fff07a" if self.dash_t > 0 else "#f4f7ff", width=5)
 
         if "dark_aura" in self.active_toggles:
             lv = self.power_lv.get("dark_aura",1)
-            rr = 88 + lv*12
-            c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#7d54ff", width=2)
+            rr = ts(88 + lv*12)
+            c.create_oval(px-rr, py-rr, px+rr, py+rr, outline="#7d54ff", width=2)
 
         if "poison_cloud" in self.active_toggles:
             lv = self.power_lv.get("poison_cloud",1)
-            rr = 125 + lv*10
-            c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#5dcf73", width=1)
+            rr = ts(125 + lv*10)
+            c.create_oval(px-rr, py-rr, px+rr, py+rr, outline="#5dcf73", width=1)
 
         if "spike_ring" in self.active_toggles:
             lv = self.power_lv.get("spike_ring",1)
-            c.create_oval(self.px-(105+lv*8), self.py-(105+lv*8), self.px+(105+lv*8), self.py+(105+lv*8), outline="#ffcc88", width=1)
-            c.create_oval(self.px-(130+lv*10), self.py-(130+lv*10), self.px+(130+lv*10), self.py+(130+lv*10), outline="#ffcc88", width=1)
+            r1, r2 = ts(105+lv*8), ts(130+lv*10)
+            c.create_oval(px-r1, py-r1, px+r1, py+r1, outline="#ffcc88", width=1)
+            c.create_oval(px-r2, py-r2, px+r2, py+r2, outline="#ffcc88", width=1)
 
         if "orbit_blades" in self.active_toggles:
             lv = self.power_lv.get("orbit_blades",1)
-            orbit_r = 46 + lv*7
+            orbit_r = ts(46 + lv*7)
             for i in range(3):
                 a = self.orbit_angle + i * (2 * math.pi / 3)
-                bx, by = self.px + math.cos(a) * orbit_r, self.py + math.sin(a) * orbit_r
-                c.create_oval(bx-6, by-6, bx+6, by+6, fill="#c9a3ff", outline="#f0e0ff")
+                bx, by = px + math.cos(a) * orbit_r, py + math.sin(a) * orbit_r
+                r = ts(6)
+                c.create_oval(bx-r, by-r, bx+r, by+r, fill="#c9a3ff", outline="#f0e0ff")
 
         if "shield_drone" in self.active_toggles:
             lv = self.power_lv.get("shield_drone",1)
-            rr = 34 + lv * 5
-            c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#8fe6ff", width=2)
+            rr = ts(34 + lv * 5)
+            c.create_oval(px-rr, py-rr, px+rr, py+rr, outline="#8fe6ff", width=2)
 
         if self.power_lv.get("damage_core",0) >= 2 and self.enemies:
             t = self.nearest_enemy()
