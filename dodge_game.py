@@ -41,27 +41,27 @@ class Game:
     def setup_powers(self):
         # 20 unique powers
         self.powers = [
-            {"id":"dark_aura","name":"Dark Aura","cost":100,"kind":"toggle"},
-            {"id":"orbit_blades","name":"Orbit Blades","cost":140,"kind":"toggle"},
-            {"id":"blood_nova","name":"Blood Nova","cost":160,"kind":"cast"},
-            {"id":"time_freeze","name":"Time Freeze","cost":170,"kind":"cast"},
-            {"id":"auto_turret","name":"Auto Turret","cost":180,"kind":"cast"},
-            {"id":"chain_lightning","name":"Chain Lightning","cost":190,"kind":"cast"},
-            {"id":"meteor_drop","name":"Meteor Shower","cost":210,"kind":"cast"},
-            {"id":"poison_cloud","name":"Poison Cloud","cost":150,"kind":"toggle"},
-            {"id":"spike_ring","name":"Spike Ring","cost":145,"kind":"toggle"},
-            {"id":"blade_dash_plus","name":"Blade Dash+","cost":120,"kind":"passive"},
-            {"id":"rapid_core","name":"Rapid Core","cost":120,"kind":"passive"},
-            {"id":"damage_core","name":"Damage Core","cost":120,"kind":"passive"},
-            {"id":"speed_core","name":"Speed Core","cost":110,"kind":"passive"},
-            {"id":"regen_core","name":"Regen Core","cost":130,"kind":"passive"},
-            {"id":"maxhp_core","name":"MaxHP Core","cost":130,"kind":"passive"},
-            {"id":"magnet_core","name":"Magnet Core","cost":125,"kind":"passive"},
-            {"id":"ricochet_shot","name":"Ricochet Shot","cost":160,"kind":"passive"},
-            {"id":"split_shot","name":"Split Shot","cost":170,"kind":"passive"},
-            {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast"},
-            {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive"},
-            {"id":"machine_gun","name":"Machine Gun","cost":170,"kind":"passive"},
+            {"id":"dark_aura","name":"Dark Aura","cost":100,"kind":"toggle","rarity":"common"},
+            {"id":"orbit_blades","name":"Orbit Blades","cost":140,"kind":"toggle","rarity":"rare"},
+            {"id":"blood_nova","name":"Blood Nova","cost":160,"kind":"cast","rarity":"epic"},
+            {"id":"time_freeze","name":"Time Freeze","cost":170,"kind":"cast","rarity":"epic"},
+            {"id":"auto_turret","name":"Auto Turret","cost":180,"kind":"cast","rarity":"rare"},
+            {"id":"chain_lightning","name":"Chain Lightning","cost":190,"kind":"cast","rarity":"epic"},
+            {"id":"meteor_drop","name":"Meteor Shower","cost":210,"kind":"cast","rarity":"legendary"},
+            {"id":"poison_cloud","name":"Poison Cloud","cost":150,"kind":"toggle","rarity":"common"},
+            {"id":"spike_ring","name":"Spike Ring","cost":145,"kind":"toggle","rarity":"common"},
+            {"id":"blade_dash_plus","name":"Blade Dash+","cost":120,"kind":"passive","rarity":"common"},
+            {"id":"rapid_core","name":"Rapid Core","cost":120,"kind":"passive","rarity":"common"},
+            {"id":"damage_core","name":"Damage Core","cost":120,"kind":"passive","rarity":"rare"},
+            {"id":"speed_core","name":"Speed Core","cost":110,"kind":"passive","rarity":"common"},
+            {"id":"regen_core","name":"Regen Core","cost":130,"kind":"passive","rarity":"rare"},
+            {"id":"maxhp_core","name":"MaxHP Core","cost":130,"kind":"passive","rarity":"common"},
+            {"id":"magnet_core","name":"Magnet Core","cost":125,"kind":"passive","rarity":"common"},
+            {"id":"ricochet_shot","name":"Ricochet Shot","cost":160,"kind":"passive","rarity":"rare"},
+            {"id":"split_shot","name":"Split Shot","cost":170,"kind":"passive","rarity":"epic"},
+            {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast","rarity":"epic"},
+            {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive","rarity":"legendary"},
+            {"id":"machine_gun","name":"Machine Gun","cost":170,"kind":"passive","rarity":"legendary"},
         ]
 
         self.descriptions = {
@@ -112,6 +112,8 @@ class Game:
         self.clones = []
         self.rockets = []
         self.smoke = []
+        self.float_texts = []
+        self.boss_active = False
 
         self.shake_t = 0
         self.shake_mag = 0
@@ -322,7 +324,33 @@ class Game:
             tier = min(3, self.wave // 4)
             shapes = ["square", "diamond", "triangle", "hex"]
             colors = ["#d94f4f", "#b04fda", "#f08a24", "#7a2be2"]
-            self.enemies.append({"x": x, "y": y, "hp": hp, "max": hp, "sp": sp, "s": size, "shape": shapes[tier], "c": colors[tier]})
+
+            variant = random.choice(["normal", "normal", "normal", "charger", "tank", "shooter"])
+            if variant == "charger":
+                sp *= 1.5
+                hp *= 0.9
+                colors[tier] = "#ff6e6e"
+            elif variant == "tank":
+                hp *= 2.1
+                sp *= 0.75
+                size += 8
+                colors[tier] = "#8a63ff"
+            elif variant == "shooter":
+                hp *= 1.15
+                sp *= 0.95
+                colors[tier] = "#ffb347"
+
+            # boss wave every 5 waves
+            is_boss = (self.wave % 5 == 0 and not self.boss_active)
+            if is_boss:
+                hp *= 8
+                size += 20
+                sp *= 0.95
+                variant = "boss"
+                self.boss_active = True
+                self.float_texts.append({"x": WORLD_W//2, "y": 90, "t": 90, "txt": f"BOSS WAVE {self.wave}!", "c": "#ffcc66"})
+
+            self.enemies.append({"x": x, "y": y, "hp": hp, "max": hp, "sp": sp, "s": size, "shape": shapes[tier], "c": colors[tier], "variant": variant, "shoot_cd": random.randint(60,120), "boss": is_boss})
 
             self.spawn_ms = max(180, SPAWN_MS - self.wave * 25)
 
@@ -584,6 +612,15 @@ class Game:
                 alive_s.append(s)
         self.smoke = alive_s
 
+        # floating combat text
+        alive_ft = []
+        for f in self.float_texts:
+            f["t"] -= 1
+            f["y"] -= 0.5
+            if f["t"] > 0:
+                alive_ft.append(f)
+        self.float_texts = alive_ft
+
         # explosion visuals timer
         alive_x = []
         for ex in self.explosions:
@@ -598,8 +635,23 @@ class Game:
             dx, dy = self.px - en["x"], self.py - en["y"]
             d = math.hypot(dx, dy) + 1e-6
             mul = 0.25 if self.freeze_t > 0 else 1.0
+
+            if en.get("variant") == "charger" and d < 170:
+                mul *= 1.35
+            if en.get("variant") == "tank":
+                mul *= 0.82
+
             en["x"] += (dx / d) * en["sp"] * mul
             en["y"] += (dy / d) * en["sp"] * mul
+
+            # shooter variant: chips player at range
+            if en.get("variant") == "shooter":
+                en["shoot_cd"] = max(0, en.get("shoot_cd", 0) - 1)
+                if d < 260 and en["shoot_cd"] == 0:
+                    self.hp -= 0.9
+                    en["shoot_cd"] = random.randint(65, 105)
+                    self.float_texts.append({"x": self.px, "y": self.py-18, "t": 26, "txt": "-1", "c": "#ff8f8f"})
+
             if d <= en["s"] / 2 + PLAYER_SIZE / 2:
                 self.hp -= 0.45
 
@@ -609,7 +661,12 @@ class Game:
 
             if en["hp"] <= 0:
                 self.kills += 1
-                self.coins += 8
+                self.coins += 14 if en.get("boss") else 8
+                self.float_texts.append({"x": en["x"], "y": en["y"]-10, "t": 34, "txt": "+" + str(14 if en.get("boss") else 8), "c": "#ffe066"})
+                if en.get("boss"):
+                    self.boss_active = False
+                    self.shake_t = max(self.shake_t, 14)
+                    self.shake_mag = max(self.shake_mag, 11)
             else:
                 alive_e.append(en)
         self.enemies = alive_e
@@ -710,7 +767,16 @@ class Game:
             if active:
                 bg = "#263f2a"
 
+            rarity = p.get("rarity", "common")
+            rarity_color = {
+                "common": "#7f8a9a",
+                "rare": "#4aa7ff",
+                "epic": "#b56bff",
+                "legendary": "#ffb347",
+            }.get(rarity, "#7f8a9a")
+
             c.create_rectangle(WORLD_W + 10, y, WIDTH - 10, y + row_h - 2, fill=bg, outline="#3d3d60")
+            c.create_rectangle(WORLD_W + 10, y, WORLD_W + 14, y + row_h - 2, fill=rarity_color, outline="")
 
             status = f"Lv{lv} | {cost}c"
             if p["kind"] == "toggle" and active:
@@ -831,6 +897,15 @@ class Game:
             ratio = max(0, en["hp"]) / max(1, en["max"])
             c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]+rw/2, en["y"]-en["s"]/2-3, fill="#2b2b2b", outline="")
             c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]-rw/2 + rw*ratio, en["y"]-en["s"]/2-3, fill="#67d67a", outline="")
+            if en.get("boss"):
+                c.create_text(en["x"], en["y"]-en["s"]/2-16, text="BOSS", fill="#ffcc66", font=("Consolas", 9, "bold"))
+
+        # edge indicators for nearby offscreen threats
+        for en in self.enemies:
+            ex = min(max(en["x"], 6), WORLD_W-6)
+            ey = min(max(en["y"], 6), HEIGHT-6)
+            if en["x"] != ex or en["y"] != ey:
+                c.create_oval(ex-4, ey-4, ex+4, ey+4, fill="#ff6363", outline="")
 
         # player
         h = PLAYER_SIZE / 2
@@ -870,6 +945,9 @@ class Game:
         c.create_text(10, 10, anchor="nw", fill="#f0f0f0", font=("Consolas", 13, "bold"),
                       text=f"HP {int(self.hp)}/{self.max_hp}  Coins {self.coins}  Wave {self.wave}  Kills {self.kills}")
         c.create_text(10, 32, anchor="nw", fill="#d2d2d2", font=("Consolas", 10), text=self.banner)
+
+        for f in self.float_texts:
+            c.create_text(f["x"], f["y"], text=f["txt"], fill=f["c"], font=("Consolas", 10, "bold"))
 
         # pause button
         x1, y1, x2, y2 = self.pause_btn

@@ -23,6 +23,14 @@ Latest updates:
 - Screen shake on big explosions (RPG/meteor)
 - RPG rockets now have a smoke trail
 - Meteor warning now includes a visible falling meteor core/tail
+- Floating combat text (+coins / damage ticks)
+
+## New Gameplay Additions
+- Boss wave every 5 waves
+- Enemy variants: charger, tank, shooter
+- Rarity strip colors in the power panel (common/rare/epic/legendary)
+- Edge threat indicators for offscreen enemies
+- Cast powers auto-fire when reloaded (including Meteor)
 
 ## Run
 ```bash
