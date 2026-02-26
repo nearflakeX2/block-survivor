@@ -2,952 +2,467 @@ import math
 import random
 import tkinter as tk
 
-# --- Window / world ---
 WIDTH, HEIGHT = 960, 640
-FPS_MS = 16
+FPS = 16
 
-# --- Player ---
 PLAYER_SIZE = 28
-PLAYER_SPEED = 4.4
-PLAYER_MAX_HP = 100
+BASE_HP = 100
+BASE_SPEED = 4.2
+BASE_BULLET_DMG = 24
+BASE_BULLET_SPEED = 9.0
+BASE_FIRE_CD = 10
 
-# --- Gun ---
-BASE_SHOOT_COOLDOWN = 10
-BULLET_SPEED = 9.0
-BULLET_DAMAGE = 24
-BULLET_RADIUS = 4
+ENEMY_BASE_HP = 28
+ENEMY_BASE_SPEED = 1.5
+SPAWN_MS = 850
 
-# --- Dash + spear ---
-DASH_SPEED = 13.0
-DASH_DURATION = 8           # frames
-DASH_COOLDOWN = 42          # frames
-DASH_HIT_DAMAGE = 56
-
-# --- Enemies ---
-ENEMY_SIZE = 24
-ENEMY_BASE_SPEED = 1.6
-ENEMY_BASE_HP = 30
-SPAWN_BASE_INTERVAL = 900  # ms
-
-# --- Powerups ---
 POWERUP_SIZE = 16
-POWERUP_DROP_CHANCE = 0.18
-POWERUP_LIFETIME = 560  # frames (~9 sec)
 
-# Permanent powerup stack caps
-MAX_DAMAGE_STACKS = 8
-MAX_HEALTH_STACKS = 8
-MAX_REGEN_STACKS = 8
-MAX_LIFESTEAL_STACKS = 6
-MAX_BULLET_SPEED_STACKS = 6
-MAX_MAGNET_STACKS = 6
-
-# --- Shop / powers ---
-POWER_BASE_COST = 90
-POWER_COOLDOWN = 150  # frames
+# 52 unique relics (bought in shop, instantly active, permanent)
+RELICS = [
+    "Ash Fang","Void Prism","Storm Nail","Sun Shard","Moon Spine","Iron Vein","Blood Lens","Star Core",
+    "Grim Feather","Echo Coil","Dusk Crown","Frost Tooth","Blaze Root","Shock Bloom","Dust Rune","Night Horn",
+    "Rift Bone","Gold Thorn","Warp Eye","Gale Ring","Thorn Heart","Stone Pulse","Nova Seed","Pyre Chain",
+    "Mist Anchor","Viper Sigil","Razor Shell","Hush Bell","Bramble Mark","Flare Idol","Obsidian Key","Sky Hook",
+    "Inferno Knot","Glacier Knot","Volt Knot","Plague Knot","Spirit Knot","Raven Knot","Phantom Knot","Titan Knot",
+    "Aether Knot","Pulse Knot","Gloom Knot","Aurora Knot","Sable Knot","Oracle Knot","Warden Knot","Lancer Knot",
+    "Reaper Knot","Mirage Knot","Tempest Knot","Ember Knot"
+]
 
 
-class SurvivorGame:
-    def __init__(self, root: tk.Tk):
+class Game:
+    def __init__(self, root):
         self.root = root
         self.root.title("Block Survivor")
-        self.root.resizable(False, False)
-
-        self.canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg="#111111", highlightthickness=0)
+        self.canvas = tk.Canvas(root, width=WIDTH, height=HEIGHT, bg="#101010", highlightthickness=0)
         self.canvas.pack()
 
-        # Input
         self.keys = set()
-        root.bind("<KeyPress>", self.on_key_press)
-        root.bind("<KeyRelease>", self.on_key_release)
+        root.bind("<KeyPress>", self.key_down)
+        root.bind("<KeyRelease>", self.key_up)
 
-        # Game state
+        self.reset_all()
+        self.root.after(self.spawn_ms, self.spawn_enemy)
+        self.tick()
+
+    def reset_all(self):
         self.running = True
-        self.game_over = False
         self.shop_open = False
-        self.score = 0
-        self.kills = 0
-        self.wave = 1
-        self.frame_count = 0
-        self.coins = 0
+        self.game_over = False
+
+        self.px, self.py = WIDTH // 2, HEIGHT // 2
+        self.face_x, self.face_y = 1, 0
+
+        self.wave, self.kills, self.score, self.coins = 1, 0, 0, 0
         self.drop_pity = 0
 
-        # Player position centered
-        self.px = WIDTH // 2
-        self.py = HEIGHT // 2
-        self.hp = PLAYER_MAX_HP
+        self.max_hp = BASE_HP
+        self.hp = float(self.max_hp)
+        self.speed_mul = 1.0
+        self.bullet_dmg_add = 0
+        self.bullet_speed_add = 0
+        self.fire_cd_mul = 1.0
+        self.regen = 0.0
+        self.magnet = 0.0
 
-        # Entities
+        # buyable powers, instantly active when bought
+        self.dark_active = False
+        self.orbit_active = False
+        self.nova_level = 0
+        self.turret_level = 0
+        self.freeze_level = 0
+
+        self.nova_cd = 0
+        self.freeze_cd = 0
+        self.freeze_timer = 0
+
+        self.dash_cd = 0
+        self.dash_t = 0
+        self.dash_vx = 0
+        self.dash_vy = 0
+
+        self.orbit_a = 0.0
+        self.turrets = []
+
+        self.powerups = []
         self.enemies = []
         self.bullets = []
-        self.powerups = []
 
-        # Timed buffs (frames)
-        self.rapid_fire_timer = 0
-        self.speed_timer = 0
-        self.shield_timer = 0
-        self.multishot_timer = 0
+        self.relic_owned = set()
 
-        # Permanent stacked upgrades from drops
-        self.damage_stack = 0
-        self.health_stack = 0
-        self.regen_stack = 0
-        self.lifesteal_stack = 0
-        self.bullet_speed_stack = 0
-        self.magnet_stack = 0
-
-        # Combat timing
+        self.banner = "WASD move | SPACE dash+spear | P shop | R restart"
+        self.spawn_ms = SPAWN_MS
         self.shoot_cd = 0
-        self.dash_cd = 0
-        self.dash_timer = 0
-        self.dash_vx = 0.0
-        self.dash_vy = 0.0
+        self.frame = 0
 
-        # powers
-        self.power_cd = 0
-        self.equipped_power = "dark"
-        self.unlocked_powers = {
-            "dark": True,
-            "orbit": False,
-            "clone": False,
-            "nova": False,
-            "turret": False,
-            "freeze": False,
-        }
-        self.orbit_timer = 0
-        self.orbit_angle = 0.0
-        self.dark_aura_on = False
-        self.orbit_aura_on = False
-        self.freeze_timer = 0
-        self.turrets = []
-        self.clones = []
+    def key_down(self, e):
+        k = e.keysym.lower()
+        self.keys.add(k)
 
-        # facing direction (for spear + dash aim)
-        self.face_x = 1.0
-        self.face_y = 0.0
-
-        # UI message
-        self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
-
-        # Spawn loop
-        self.spawn_interval = SPAWN_BASE_INTERVAL
-        self.root.after(self.spawn_interval, self.spawn_enemy)
-
-        self.update()
-
-    # ---------- Input ----------
-    def on_key_press(self, event):
-        key = event.keysym.lower()
-        self.keys.add(key)
-
-        if key == "r" and self.game_over:
-            self.restart()
+        if k == "r" and self.game_over:
+            self.reset_all()
             return
 
-        if key == "p" and self.running:
+        if k == "p" and self.running:
             self.shop_open = not self.shop_open
-            self.banner = "SHOP OPEN" if self.shop_open else "Back to fight"
             return
 
         if self.shop_open:
-            if key == "1":
-                self.buy_or_equip_power("dark")
-            elif key == "2":
-                self.buy_or_equip_power("orbit")
-            elif key == "3":
-                self.buy_or_equip_power("clone")
-            elif key == "4":
-                self.buy_or_equip_power("nova")
-            elif key == "5":
-                self.buy_or_equip_power("turret")
-            elif key == "6":
-                self.buy_or_equip_power("freeze")
+            if k == "1": self.buy_dark()
+            elif k == "2": self.buy_orbit()
+            elif k == "3": self.buy_nova()
+            elif k == "4": self.buy_turret()
+            elif k == "5": self.buy_freeze()
+            elif k == "6": self.buy_relic()
             return
 
-        if key == "space" and self.running:
+        if k == "space" and self.running:
             self.start_dash()
-        if key == "q" and self.running:
-            self.use_power()
 
-    def on_key_release(self, event):
-        self.keys.discard(event.keysym.lower())
+    def key_up(self, e):
+        self.keys.discard(e.keysym.lower())
 
-    # ---------- Core mechanics ----------
-    def restart(self):
-        self.running = True
-        self.game_over = False
-        self.score = 0
-        self.kills = 0
-        self.wave = 1
-        self.frame_count = 0
-        self.coins = 0
-        self.drop_pity = 0
-        self.hp = PLAYER_MAX_HP
-        self.px = WIDTH // 2
-        self.py = HEIGHT // 2
-        self.enemies.clear()
-        self.bullets.clear()
-        self.powerups.clear()
-        self.shoot_cd = 0
-        self.dash_cd = 0
-        self.dash_timer = 0
-        self.dash_vx = 0.0
-        self.dash_vy = 0.0
-        self.power_cd = 0
-        self.equipped_power = "dark"
-        self.unlocked_powers = {
-            "dark": True,
-            "orbit": False,
-            "clone": False,
-            "nova": False,
-            "turret": False,
-            "freeze": False,
-        }
-        self.orbit_timer = 0
-        self.orbit_angle = 0.0
-        self.dark_aura_on = False
-        self.orbit_aura_on = False
-        self.freeze_timer = 0
-        self.turrets.clear()
-        self.clones.clear()
-        self.shop_open = False
-        self.face_x = 1.0
-        self.face_y = 0.0
-        self.spawn_interval = SPAWN_BASE_INTERVAL
-        self.rapid_fire_timer = 0
-        self.speed_timer = 0
-        self.shield_timer = 0
-        self.multishot_timer = 0
-        self.damage_stack = 0
-        self.health_stack = 0
-        self.regen_stack = 0
-        self.lifesteal_stack = 0
-        self.bullet_speed_stack = 0
-        self.magnet_stack = 0
-        self.banner = "WASD move | Auto-shoot nearest | SPACE dash | Q power | P shop | R restart"
+    # ---------- shop ----------
+    def spend(self, cost):
+        if self.coins < cost:
+            self.banner = f"Need {cost} coins"
+            return False
+        self.coins -= cost
+        return True
 
-    def max_hp(self):
-        return PLAYER_MAX_HP + self.health_stack * 12
+    def buy_dark(self):
+        if self.dark_active: self.banner = "Dark Aura already active"; return
+        if self.spend(100): self.dark_active = True; self.banner = "Dark Aura activated"
 
-    def current_player_speed(self):
-        if self.speed_timer > 0:
-            return PLAYER_SPEED * 1.5
-        return PLAYER_SPEED
+    def buy_orbit(self):
+        if self.orbit_active: self.banner = "Orbit already active"; return
+        if self.spend(180): self.orbit_active = True; self.banner = "Orbit Blades activated"
 
-    def current_shoot_cooldown(self):
-        if self.rapid_fire_timer > 0:
-            return max(3, BASE_SHOOT_COOLDOWN // 2)
-        return BASE_SHOOT_COOLDOWN
+    def buy_nova(self):
+        c = 140 + self.nova_level * 120
+        if self.spend(c): self.nova_level += 1; self.banner = f"Blood Nova Lv{self.nova_level}"
 
-    def move_player(self):
-        if self.dash_timer > 0:
+    def buy_turret(self):
+        c = 180 + self.turret_level * 140
+        if self.spend(c):
+            self.turret_level += 1
+            self.turrets.append({"x": self.px, "y": self.py, "ttl": 420 + 80*self.turret_level, "cd": 0})
+            self.banner = f"Turret Lv{self.turret_level} (deployed)"
+
+    def buy_freeze(self):
+        c = 160 + self.freeze_level * 130
+        if self.spend(c): self.freeze_level += 1; self.banner = f"Time Freeze Lv{self.freeze_level}"
+
+    def buy_relic(self):
+        if len(self.relic_owned) >= len(RELICS):
+            self.banner = "All relics owned"
             return
+        cost = 90 + 8 * len(self.relic_owned)
+        if not self.spend(cost):
+            return
+        choice = random.choice([r for r in RELICS if r not in self.relic_owned])
+        self.relic_owned.add(choice)
+        self.apply_relic(choice)
+        self.banner = f"Relic acquired: {choice}"
 
-        speed = self.current_player_speed()
-        dx = dy = 0.0
-        if "a" in self.keys or "left" in self.keys:
-            dx -= speed
-        if "d" in self.keys or "right" in self.keys:
-            dx += speed
-        if "w" in self.keys or "up" in self.keys:
-            dy -= speed
-        if "s" in self.keys or "down" in self.keys:
-            dy += speed
+    def apply_relic(self, name):
+        i = RELICS.index(name)
+        mod = i % 13
+        tier = 1 + i // 13
+        # all effects are unique by (mod,tier,name)
+        if mod == 0: self.bullet_dmg_add += 2 * tier
+        elif mod == 1: self.speed_mul += 0.03 * tier
+        elif mod == 2: self.regen += 0.15 * tier
+        elif mod == 3: self.max_hp += 6 * tier; self.hp += 6 * tier
+        elif mod == 4: self.fire_cd_mul *= max(0.95, 1 - 0.02 * tier)
+        elif mod == 5: self.bullet_speed_add += 0.5 * tier
+        elif mod == 6: self.magnet += 14 * tier
+        elif mod == 7: self.nova_level += 1
+        elif mod == 8: self.freeze_level += 1
+        elif mod == 9: self.turret_level += 1
+        elif mod == 10: self.dark_active = True
+        elif mod == 11: self.orbit_active = True
+        elif mod == 12: self.hp = min(self.max_hp, self.hp + 20 + 8*tier)
 
-        if dx and dy:
-            dx *= 0.7071
-            dy *= 0.7071
-
-        # update facing while moving
-        if dx or dy:
-            mag = math.hypot(dx, dy)
-            self.face_x = dx / mag
-            self.face_y = dy / mag
-
-        half = PLAYER_SIZE / 2
-        self.px = max(half, min(WIDTH - half, self.px + dx))
-        self.py = max(half, min(HEIGHT - half, self.py + dy))
-
+    # ---------- gameplay ----------
     def start_dash(self):
-        if self.dash_cd > 0 or self.dash_timer > 0:
+        if self.dash_cd > 0 or self.dash_t > 0:
             return
-
-        # dash direction from movement keys, else toward nearest enemy, else facing dir
-        dx = dy = 0.0
-        if "a" in self.keys or "left" in self.keys:
-            dx -= 1
-        if "d" in self.keys or "right" in self.keys:
-            dx += 1
-        if "w" in self.keys or "up" in self.keys:
-            dy -= 1
-        if "s" in self.keys or "down" in self.keys:
-            dy += 1
-
+        dx = (-1 if "a" in self.keys or "left" in self.keys else 0) + (1 if "d" in self.keys or "right" in self.keys else 0)
+        dy = (-1 if "w" in self.keys or "up" in self.keys else 0) + (1 if "s" in self.keys or "down" in self.keys else 0)
         if dx == 0 and dy == 0:
             t = self.nearest_enemy()
             if t:
-                dx = t["x"] - self.px
-                dy = t["y"] - self.py
+                dx, dy = t["x"]-self.px, t["y"]-self.py
             else:
                 dx, dy = self.face_x, self.face_y
-
-        mag = math.hypot(dx, dy) + 1e-6
-        self.dash_vx = (dx / mag) * DASH_SPEED
-        self.dash_vy = (dy / mag) * DASH_SPEED
-        self.face_x = dx / mag
-        self.face_y = dy / mag
-        self.dash_timer = DASH_DURATION
-        self.dash_cd = DASH_COOLDOWN
-
-    def update_dash(self):
-        if self.dash_timer <= 0:
-            return
-
-        half = PLAYER_SIZE / 2
-        self.px = max(half, min(WIDTH - half, self.px + self.dash_vx))
-        self.py = max(half, min(HEIGHT - half, self.py + self.dash_vy))
-
-        # spear-dash collision damage
-        spear_len = 30
-        tip_x = self.px + self.face_x * spear_len
-        tip_y = self.py + self.face_y * spear_len
-        for e in self.enemies:
-            # hit if close to player or spear tip while dashing
-            d_body = math.hypot(e["x"] - self.px, e["y"] - self.py)
-            d_tip = math.hypot(e["x"] - tip_x, e["y"] - tip_y)
-            if d_body <= (e["size"] / 2 + PLAYER_SIZE / 2) or d_tip <= (e["size"] / 2 + 8):
-                e["hp"] -= DASH_HIT_DAMAGE
-
-        self.dash_timer -= 1
-
-    def power_cost(self, ptype):
-        idx = {"dark": 1, "orbit": 2, "clone": 3, "nova": 4, "turret": 5, "freeze": 6}[ptype]
-        return POWER_BASE_COST * idx
-
-    def buy_or_equip_power(self, ptype):
-        if self.unlocked_powers[ptype]:
-            self.equipped_power = ptype
-            self.banner = f"Equipped power: {ptype.upper()}"
-            return
-
-        cost = self.power_cost(ptype)
-        if self.coins >= cost:
-            self.coins -= cost
-            self.unlocked_powers[ptype] = True
-            self.equipped_power = ptype
-            self.banner = f"Unlocked {ptype.upper()}!"
-        else:
-            self.banner = f"Need {cost} coins for {ptype.upper()}"
-
-    def use_power(self):
-        if self.shop_open:
-            return
-
-        p = self.equipped_power
-        if not self.unlocked_powers.get(p, False):
-            return
-
-        # Dark + Orbit are persistent toggles now (don't run out)
-        if p == "dark":
-            self.dark_aura_on = not self.dark_aura_on
-            self.banner = "DARK AURA ON" if self.dark_aura_on else "DARK AURA OFF"
-            return
-
-        if p == "orbit":
-            self.orbit_aura_on = not self.orbit_aura_on
-            self.banner = "ORBIT BLADES ON" if self.orbit_aura_on else "ORBIT BLADES OFF"
-            return
-
-        # Cast powers with cooldown
-        if p == "clone":
-            if self.power_cd > 0:
-                return
-            self.clones.append({"x": self.px, "y": self.py, "ttl": 260})
-            self.banner = "CLONE SENT OUT!"
-            self.power_cd = POWER_COOLDOWN
-            return
-
-        if p == "nova":
-            if self.power_cd > 0:
-                return
-            for e in self.enemies:
-                dist = math.hypot(e["x"] - self.px, e["y"] - self.py)
-                if dist <= 180:
-                    e["hp"] -= 85
-            self.banner = "BLOOD NOVA!"
-            self.power_cd = POWER_COOLDOWN + 40
-            return
-
-        if p == "turret":
-            if self.power_cd > 0:
-                return
-            self.turrets.append({"x": self.px, "y": self.py, "ttl": 360, "cd": 0})
-            self.banner = "TURRET DEPLOYED!"
-            self.power_cd = POWER_COOLDOWN
-            return
-
-        if p == "freeze":
-            if self.power_cd > 0:
-                return
-            self.freeze_timer = 180
-            self.banner = "TIME FREEZE!"
-            self.power_cd = POWER_COOLDOWN + 20
-            return
-
-    def update_powers(self):
-        # persistent dark aura
-        if self.dark_aura_on:
-            radius = 88
-            damage = 1.6
-            for e in self.enemies:
-                if math.hypot(e["x"] - self.px, e["y"] - self.py) <= (radius + e["size"] / 2):
-                    e["hp"] -= damage
-
-        # persistent orbit blades
-        if self.orbit_aura_on:
-            self.orbit_angle += 0.22
-            blade_r = 46
-            dmg_r = 12
-            damage = 6
-            for i in range(3):
-                a = self.orbit_angle + i * (2 * math.pi / 3)
-                bx = self.px + math.cos(a) * blade_r
-                by = self.py + math.sin(a) * blade_r
-                for e in self.enemies:
-                    if math.hypot(e["x"] - bx, e["y"] - by) <= (e["size"] / 2 + dmg_r):
-                        e["hp"] -= damage
-
-        # clones chase nearest enemy and deal contact damage (temporary)
-        alive_clones = []
-        for c in self.clones:
-            c["ttl"] -= 1
-            if c["ttl"] <= 0:
-                continue
-
-            target = None
-            if self.enemies:
-                target = min(self.enemies, key=lambda e: (e["x"] - c["x"]) ** 2 + (e["y"] - c["y"]) ** 2)
-
-            if target:
-                dx = target["x"] - c["x"]
-                dy = target["y"] - c["y"]
-                d = math.hypot(dx, dy) + 1e-6
-                c["x"] += (dx / d) * 5.6
-                c["y"] += (dy / d) * 5.6
-                if d <= target["size"] / 2 + 10:
-                    target["hp"] -= 16
-            alive_clones.append(c)
-        self.clones = alive_clones
-
-        # placed turrets auto-fire nearest enemy
-        alive_turrets = []
-        for t in self.turrets:
-            t["ttl"] -= 1
-            t["cd"] = max(0, t["cd"] - 1)
-            if t["ttl"] <= 0:
-                continue
-
-            if self.enemies and t["cd"] == 0:
-                target = min(self.enemies, key=lambda e: (e["x"] - t["x"]) ** 2 + (e["y"] - t["y"]) ** 2)
-                dx = target["x"] - t["x"]
-                dy = target["y"] - t["y"]
-                d = math.hypot(dx, dy)
-                if d <= 260:
-                    target["hp"] -= 28
-                    t["cd"] = 16
-            alive_turrets.append(t)
-        self.turrets = alive_turrets
-
-        if self.freeze_timer > 0:
-            self.freeze_timer -= 1
+        d = math.hypot(dx, dy) + 1e-6
+        self.face_x, self.face_y = dx/d, dy/d
+        self.dash_vx, self.dash_vy = self.face_x * 13, self.face_y * 13
+        self.dash_t, self.dash_cd = 8, 42
 
     def spawn_enemy(self):
         if self.running and not self.shop_open:
-            side = random.choice(["top", "bottom", "left", "right"])
-            m = 30
-            if side == "top":
-                x, y = random.randint(m, WIDTH - m), -20
-            elif side == "bottom":
-                x, y = random.randint(m, WIDTH - m), HEIGHT + 20
-            elif side == "left":
-                x, y = -20, random.randint(m, HEIGHT - m)
-            else:
-                x, y = WIDTH + 20, random.randint(m, HEIGHT - m)
+            side = random.choice([0,1,2,3])
+            if side==0: x,y = random.randint(30,WIDTH-30), -20
+            elif side==1: x,y = random.randint(30,WIDTH-30), HEIGHT+20
+            elif side==2: x,y = -20, random.randint(30,HEIGHT-30)
+            else: x,y = WIDTH+20, random.randint(30,HEIGHT-30)
 
-            hp = ENEMY_BASE_HP + self.wave * 6
-            speed = ENEMY_BASE_SPEED + min(2.5, self.wave * 0.11) + random.random() * 0.6
-            size = ENEMY_SIZE + random.randint(-4, 5)
-
-            # Enemy design tiers get meaner as waves increase
-            if self.wave < 4:
-                etype = "grunt"
-                color, outline = "#d94f4f", "#ffb3b3"
-                shape = "square"
-            elif self.wave < 8:
-                etype = "brute"
-                hp += 18
-                size += 6
-                speed *= 0.86
-                color, outline = "#b73a7c", "#f4b3db"
-                shape = "diamond"
-            elif self.wave < 12:
-                etype = "runner"
-                hp -= 8
-                size -= 3
-                speed *= 1.42
-                color, outline = "#f08a24", "#ffd4a3"
-                shape = "triangle"
-            else:
-                etype = "elite"
-                hp += 32
-                size += 3
-                speed *= 1.2
-                color, outline = "#7a2be2", "#d7b4ff"
-                shape = "hex"
-
-            self.enemies.append({
-                "x": x,
-                "y": y,
-                "hp": hp,
-                "max_hp": hp,
-                "speed": speed,
-                "size": max(12, size),
-                "color": color,
-                "outline": outline,
-                "type": etype,
-                "shape": shape,
-            })
-
-            # speed up over time
-            self.spawn_interval = max(220, int(SPAWN_BASE_INTERVAL - self.wave * 35))
-
-        self.root.after(self.spawn_interval, self.spawn_enemy)
+            hp = ENEMY_BASE_HP + self.wave*6
+            sp = ENEMY_BASE_SPEED + min(2.8, self.wave*0.1) + random.random()*0.5
+            shape = ["square","diamond","triangle","hex"][min(3,self.wave//4)]
+            color = ["#d94f4f","#b04fda","#f08a24","#7a2be2"][min(3,self.wave//4)]
+            self.enemies.append({"x":x,"y":y,"hp":hp,"max":hp,"sp":sp,"s":22+random.randint(-4,5),"shape":shape,"c":color})
+            self.spawn_ms = max(180, SPAWN_MS - self.wave*28)
+        self.root.after(self.spawn_ms, self.spawn_enemy)
 
     def nearest_enemy(self):
-        if not self.enemies:
-            return None
-        return min(self.enemies, key=lambda e: (e["x"] - self.px) ** 2 + (e["y"] - self.py) ** 2)
+        return min(self.enemies, key=lambda e:(e["x"]-self.px)**2+(e["y"]-self.py)**2) if self.enemies else None
 
-    def spawn_bullet(self, angle):
-        bullet_speed = BULLET_SPEED + self.bullet_speed_stack * 1.2
-        vx = math.cos(angle) * bullet_speed
-        vy = math.sin(angle) * bullet_speed
-        self.bullets.append({"x": self.px, "y": self.py, "vx": vx, "vy": vy, "r": BULLET_RADIUS})
-
-    def auto_shoot(self):
-        if self.shoot_cd > 0 or not self.running:
+    def fire(self):
+        if self.shoot_cd > 0 or not self.enemies:
             return
+        t = self.nearest_enemy()
+        a = math.atan2(t["y"]-self.py, t["x"]-self.px)
+        sp = BASE_BULLET_SPEED + self.bullet_speed_add
+        self.bullets.append({"x":self.px,"y":self.py,"vx":math.cos(a)*sp,"vy":math.sin(a)*sp,"r":4})
+        cd = int(BASE_FIRE_CD * self.fire_cd_mul)
+        self.shoot_cd = max(3, cd)
 
-        target = self.nearest_enemy()
-        if not target:
-            return
-
-        dx = target["x"] - self.px
-        dy = target["y"] - self.py
-        base_angle = math.atan2(dy, dx)
-
-        # multishot powerup
-        if self.multishot_timer > 0:
-            spread = 0.18
-            for a in (base_angle - spread, base_angle, base_angle + spread):
-                self.spawn_bullet(a)
-        else:
-            self.spawn_bullet(base_angle)
-
-        self.shoot_cd = self.current_shoot_cooldown()
-
-    def maybe_drop_powerup(self, x, y):
+    def drop_powerup(self, x, y):
         self.drop_pity += 1
-
-        # Drop more often + guaranteed drop every 4 kills if unlucky
-        if random.random() > 0.34 and self.drop_pity < 4:
+        if random.random() > 0.35 and self.drop_pity < 4:
             return
-
         self.drop_pity = 0
+        kinds = ["heal","rapid","speed","shield","multi","damage","maxhp","regen","bspeed","magnet"]
+        k = random.choice(kinds)
+        cols = {"heal":"#4de284","rapid":"#ffe066","speed":"#66d9ff","shield":"#b388ff","multi":"#ff9ecf",
+                "damage":"#ff784f","maxhp":"#7dffb2","regen":"#9cf2ff","bspeed":"#ffd166","magnet":"#a6ff6b"}
+        self.powerups.append({"x":x,"y":y,"k":k,"ttl":560,"c":cols[k]})
 
-        # Every 3rd drop guarantees a permanent core so it's easy to notice
-        guaranteed_perm = (self.kills % 3 == 0)
-        if guaranteed_perm:
-            ptype = random.choice(["damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"])
-        else:
-            ptype = random.choices(
-                ["heal", "rapid", "speed", "shield", "multi", "damage", "maxhp", "regen", "lifesteal", "bspeed", "magnet"],
-                weights=[16, 12, 12, 11, 11, 11, 9, 7, 6, 6, 5],
-                k=1,
-            )[0]
+    def apply_drop(self, k):
+        if k == "heal": self.hp = min(self.max_hp, self.hp + 24)
+        elif k == "rapid": self.fire_cd_mul *= 0.92
+        elif k == "speed": self.speed_mul += 0.08
+        elif k == "shield": self.hp = min(self.max_hp, self.hp + 10)
+        elif k == "multi": self.bullet_dmg_add += 4
+        elif k == "damage": self.bullet_dmg_add += 6
+        elif k == "maxhp": self.max_hp += 14; self.hp += 14
+        elif k == "regen": self.regen += 0.4
+        elif k == "bspeed": self.bullet_speed_add += 1.4
+        elif k == "magnet": self.magnet += 25
 
-        color = {
-            "heal": "#4de284",   # green
-            "rapid": "#ffe066",  # yellow
-            "speed": "#66d9ff",  # cyan
-            "shield": "#b388ff", # purple
-            "multi": "#ff9ecf",  # pink
-            "damage": "#ff784f", # orange-red
-            "maxhp": "#7dffb2",  # mint
-            "regen": "#9cf2ff",  # pale cyan
-            "lifesteal": "#ff5f9a", # rose
-            "bspeed": "#ffd166", # amber
-            "magnet": "#a6ff6b", # lime
-        }[ptype]
-
-        self.powerups.append({
-            "x": x,
-            "y": y,
-            "type": ptype,
-            "ttl": POWERUP_LIFETIME,
-            "color": color,
-        })
-
-    def collect_powerups(self):
-        remaining = []
-        player_r = PLAYER_SIZE / 2
-
-        for p in self.powerups:
-            p["ttl"] -= 1
-            if p["ttl"] <= 0:
-                continue
-
-            # magnet core pulls drops toward player
-            if self.magnet_stack > 0:
-                mdx = self.px - p["x"]
-                mdy = self.py - p["y"]
-                md = math.hypot(mdx, mdy) + 1e-6
-                pull_speed = 0.8 + self.magnet_stack * 0.45
-                if md < 220 + self.magnet_stack * 30:
-                    p["x"] += (mdx / md) * pull_speed
-                    p["y"] += (mdy / md) * pull_speed
-
-            if math.hypot(p["x"] - self.px, p["y"] - self.py) <= (player_r + POWERUP_SIZE / 2):
-                self.apply_powerup(p["type"])
-                continue
-
-            remaining.append(p)
-
-        self.powerups = remaining
-
-    def apply_powerup(self, ptype):
-        if ptype == "heal":
-            self.hp = min(self.max_hp(), self.hp + 28)
-            self.banner = "+HEAL"
-        elif ptype == "rapid":
-            self.rapid_fire_timer = min(1800, self.rapid_fire_timer + 420)
-            self.banner = "RAPID FIRE STACKED!"
-        elif ptype == "speed":
-            self.speed_timer = min(1800, self.speed_timer + 420)
-            self.banner = "SPEED BOOST STACKED!"
-        elif ptype == "shield":
-            self.shield_timer = min(1800, self.shield_timer + 420)
-            self.banner = "SHIELD STACKED!"
-        elif ptype == "multi":
-            self.multishot_timer = min(1800, self.multishot_timer + 420)
-            self.banner = "TRIPLE SHOT STACKED!"
-        elif ptype == "damage":
-            self.damage_stack = min(MAX_DAMAGE_STACKS, self.damage_stack + 1)
-            self.banner = f"PERM DAMAGE UP ({self.damage_stack})"
-        elif ptype == "maxhp":
-            if self.health_stack < MAX_HEALTH_STACKS:
-                self.health_stack += 1
-                self.hp += 12
-            self.banner = f"PERM MAX HP UP ({self.health_stack})"
-        elif ptype == "regen":
-            self.regen_stack = min(MAX_REGEN_STACKS, self.regen_stack + 1)
-            self.banner = f"PERM REGEN UP ({self.regen_stack})"
-        elif ptype == "lifesteal":
-            self.lifesteal_stack = min(MAX_LIFESTEAL_STACKS, self.lifesteal_stack + 1)
-            self.banner = f"PERM LIFESTEAL UP ({self.lifesteal_stack})"
-        elif ptype == "bspeed":
-            self.bullet_speed_stack = min(MAX_BULLET_SPEED_STACKS, self.bullet_speed_stack + 1)
-            self.banner = f"PERM BULLET SPD UP ({self.bullet_speed_stack})"
-        elif ptype == "magnet":
-            self.magnet_stack = min(MAX_MAGNET_STACKS, self.magnet_stack + 1)
-            self.banner = f"PERM MAGNET UP ({self.magnet_stack})"
-
-    def update_bullets(self):
-        alive_bullets = []
-
-        for b in self.bullets:
-            b["x"] += b["vx"]
-            b["y"] += b["vy"]
-
-            # out of bounds
-            if b["x"] < -10 or b["x"] > WIDTH + 10 or b["y"] < -10 or b["y"] > HEIGHT + 10:
-                continue
-
-            hit = False
-            for e in self.enemies:
-                dist = math.hypot(e["x"] - b["x"], e["y"] - b["y"])
-                if dist <= (e["size"] / 2 + b["r"]):
-                    bonus = self.damage_stack * 4
-                    dealt = (BULLET_DAMAGE + bonus)
-                    e["hp"] -= dealt
-                    if self.lifesteal_stack > 0:
-                        self.hp = min(self.max_hp(), self.hp + self.lifesteal_stack * 0.6)
-                    hit = True
-                    break
-
-            if not hit:
-                alive_bullets.append(b)
-
-        self.bullets = alive_bullets
-
-    def update_enemies(self):
-        if not self.running:
+    def update_logic(self):
+        self.frame += 1
+        if not self.running or self.shop_open:
             return
 
-        player_half = PLAYER_SIZE / 2
-        for e in self.enemies:
-            dx = self.px - e["x"]
-            dy = self.py - e["y"]
-            dist = math.hypot(dx, dy) + 1e-6
-            freeze_mult = 0.2 if self.freeze_timer > 0 else 1.0
-            e["x"] += (dx / dist) * e["speed"] * freeze_mult
-            e["y"] += (dy / dist) * e["speed"] * freeze_mult
+        # move
+        if self.dash_t > 0:
+            self.px += self.dash_vx; self.py += self.dash_vy; self.dash_t -= 1
+            for e in self.enemies:
+                if math.hypot(e["x"]-self.px, e["y"]-self.py) < e["s"]/2 + 18:
+                    e["hp"] -= 56
+        else:
+            sp = BASE_SPEED * self.speed_mul
+            dx = (-sp if "a" in self.keys or "left" in self.keys else 0) + (sp if "d" in self.keys or "right" in self.keys else 0)
+            dy = (-sp if "w" in self.keys or "up" in self.keys else 0) + (sp if "s" in self.keys or "down" in self.keys else 0)
+            if dx and dy: dx*=0.7071; dy*=0.7071
+            if dx or dy:
+                d = math.hypot(dx,dy); self.face_x,self.face_y = dx/d, dy/d
+            self.px += dx; self.py += dy
 
-            # contact damage (reduced with shield)
-            if dist <= (e["size"] / 2 + player_half):
-                dmg = 0.45
-                if self.shield_timer > 0:
-                    dmg *= 0.35
-                self.hp -= dmg
+        h = PLAYER_SIZE/2
+        self.px = max(h, min(WIDTH-h, self.px))
+        self.py = max(h, min(HEIGHT-h, self.py))
 
-        survivors = []
-        for e in self.enemies:
-            if e["hp"] <= 0:
-                self.kills += 1
-                self.score += 10
-                self.coins += 6
-                self.maybe_drop_powerup(e["x"], e["y"])
-            else:
-                survivors.append(e)
-        self.enemies = survivors
+        # auto skills (instant-active buys)
+        if self.dark_active:
+            for e in self.enemies:
+                if math.hypot(e["x"]-self.px,e["y"]-self.py) < 90 + e["s"]/2:
+                    e["hp"] -= 1.7
 
-        if self.hp <= 0:
-            self.hp = 0
-            self.running = False
-            self.game_over = True
-            self.banner = "Game Over! Press R to restart"
+        if self.orbit_active:
+            self.orbit_a += 0.22
+            for i in range(3):
+                a = self.orbit_a + i*2.094
+                bx, by = self.px + math.cos(a)*46, self.py + math.sin(a)*46
+                for e in self.enemies:
+                    if math.hypot(e["x"]-bx,e["y"]-by) < e["s"]/2 + 12:
+                        e["hp"] -= 6
 
-    def update_progression(self):
-        # increase wave every ~15 kills
-        self.wave = 1 + self.kills // 15
+        # auto nova/freeze if bought
+        if self.nova_level > 0 and self.nova_cd == 0:
+            r = 140 + self.nova_level*12
+            d = 40 + self.nova_level*18
+            for e in self.enemies:
+                if math.hypot(e["x"]-self.px,e["y"]-self.py) < r:
+                    e["hp"] -= d
+            self.nova_cd = max(120, 320 - self.nova_level*20)
 
-    def tick_buffs(self):
-        self.rapid_fire_timer = max(0, self.rapid_fire_timer - 1)
-        self.speed_timer = max(0, self.speed_timer - 1)
-        self.shield_timer = max(0, self.shield_timer - 1)
-        self.multishot_timer = max(0, self.multishot_timer - 1)
+        if self.freeze_level > 0 and self.freeze_cd == 0:
+            self.freeze_timer = 70 + self.freeze_level*20
+            self.freeze_cd = max(180, 420 - self.freeze_level*25)
 
-        # passive regen from permanent regen stacks
-        if self.regen_stack > 0 and self.running and self.frame_count % 30 == 0:
-            self.hp = min(self.max_hp(), self.hp + self.regen_stack)
+        # turret logic
+        alive_t = []
+        for t in self.turrets:
+            t["ttl"] -= 1; t["cd"] = max(0, t["cd"]-1)
+            if t["ttl"] <= 0: continue
+            if self.enemies and t["cd"]==0:
+                target = min(self.enemies, key=lambda e:(e["x"]-t["x"])**2+(e["y"]-t["y"])**2)
+                if math.hypot(target["x"]-t["x"], target["y"]-t["y"]) < 280:
+                    target["hp"] -= 26 + self.turret_level*6
+                    t["cd"] = 14
+            alive_t.append(t)
+        self.turrets = alive_t
 
-        self.hp = min(self.max_hp(), self.hp)
-
-    # ---------- Rendering ----------
-    def draw(self):
-        self.canvas.delete("all")
-
-        # subtle grid
-        for x in range(0, WIDTH, 40):
-            self.canvas.create_line(x, 0, x, HEIGHT, fill="#191919")
-        for y in range(0, HEIGHT, 40):
-            self.canvas.create_line(0, y, WIDTH, y, fill="#191919")
-
-        # powerups
-        labels = {
-            "heal": "H", "rapid": "R", "speed": "S", "shield": "D", "multi": "T",
-            "damage": "+DMG", "maxhp": "+HP", "regen": "+RG", "lifesteal": "+LS",
-            "bspeed": "+BS", "magnet": "+MG"
-        }
-        for p in self.powerups:
-            s = POWERUP_SIZE
-            x1, y1 = p["x"] - s / 2, p["y"] - s / 2
-            x2, y2 = p["x"] + s / 2, p["y"] + s / 2
-            self.canvas.create_oval(x1, y1, x2, y2, fill=p["color"], outline="#ffffff")
-            self.canvas.create_text(p["x"], p["y"], text=labels.get(p["type"], "?"), fill="#0b0b0b", font=("Consolas", 7, "bold"))
+        # shooting
+        self.fire()
 
         # bullets
+        live_b = []
         for b in self.bullets:
-            r = b["r"]
-            self.canvas.create_oval(b["x"] - r, b["y"] - r, b["x"] + r, b["y"] + r, fill="#ffd84d", outline="")
+            b["x"] += b["vx"]; b["y"] += b["vy"]
+            if b["x"] < -10 or b["x"] > WIDTH+10 or b["y"] < -10 or b["y"] > HEIGHT+10:
+                continue
+            hit = False
+            for e in self.enemies:
+                if math.hypot(e["x"]-b["x"], e["y"]-b["y"]) < e["s"]/2 + b["r"]:
+                    e["hp"] -= BASE_BULLET_DMG + self.bullet_dmg_add
+                    hit = True
+                    break
+            if not hit: live_b.append(b)
+        self.bullets = live_b
 
-        # clones
-        for c in self.clones:
-            s = 14
-            self.canvas.create_rectangle(c["x"] - s/2, c["y"] - s/2, c["x"] + s/2, c["y"] + s/2, fill="#74f0ff", outline="#d8fbff")
-
-        # turrets
-        for t in self.turrets:
-            s = 16
-            self.canvas.create_rectangle(t["x"] - s/2, t["y"] - s/2, t["x"] + s/2, t["y"] + s/2, fill="#ffdca8", outline="#fff3dd", width=2)
-            self.canvas.create_oval(t["x"]-4, t["y"]-4, t["x"]+4, t["y"]+4, fill="#7a4a00", outline="")
-
-        # enemies (design changes with difficulty tiers)
+        # enemies move + hurt
+        live_e = []
         for e in self.enemies:
-            s = e["size"]
-            x, y = e["x"], e["y"]
-            x1, y1 = x - s / 2, y - s / 2
-            x2, y2 = x + s / 2, y + s / 2
+            dx,dy = self.px-e["x"], self.py-e["y"]
+            d = math.hypot(dx,dy)+1e-6
+            mul = 0.22 if self.freeze_timer>0 else 1.0
+            e["x"] += (dx/d)*e["sp"]*mul
+            e["y"] += (dy/d)*e["sp"]*mul
+            if d < e["s"]/2 + PLAYER_SIZE/2:
+                self.hp -= 0.45 * (0.55 if self.freeze_timer>0 else 1.0)
+            if e["hp"] <= 0:
+                self.kills += 1; self.score += 10; self.coins += 7
+                self.drop_powerup(e["x"], e["y"])
+            else:
+                live_e.append(e)
+        self.enemies = live_e
 
-            if e["shape"] == "square":
-                self.canvas.create_rectangle(x1, y1, x2, y2, fill=e["color"], outline=e["outline"], width=2)
-            elif e["shape"] == "diamond":
-                self.canvas.create_polygon(
-                    x, y1, x2, y, x, y2, x1, y,
-                    fill=e["color"], outline=e["outline"], width=2
-                )
-            elif e["shape"] == "triangle":
-                self.canvas.create_polygon(
-                    x, y1, x2, y2, x1, y2,
-                    fill=e["color"], outline=e["outline"], width=2
-                )
-            else:  # hex
-                h = s * 0.5
-                self.canvas.create_polygon(
-                    x - h * 0.9, y - h,
-                    x + h * 0.9, y - h,
-                    x + h * 1.4, y,
-                    x + h * 0.9, y + h,
-                    x - h * 0.9, y + h,
-                    x - h * 1.4, y,
-                    fill=e["color"], outline=e["outline"], width=2
-                )
+        # collect drops
+        keep = []
+        for p in self.powerups:
+            p["ttl"] -= 1
+            if p["ttl"] <= 0: continue
+            if self.magnet > 0:
+                dx,dy = self.px-p["x"], self.py-p["y"]
+                d = math.hypot(dx,dy)+1e-6
+                if d < 220 + self.magnet:
+                    p["x"] += (dx/d)*(0.8 + self.magnet*0.02)
+                    p["y"] += (dy/d)*(0.8 + self.magnet*0.02)
+            if math.hypot(p["x"]-self.px,p["y"]-self.py) < PLAYER_SIZE/2 + POWERUP_SIZE/2:
+                self.apply_drop(p["k"])
+            else:
+                keep.append(p)
+        self.powerups = keep
 
-            # mini HP bar
-            hp_ratio = max(0, e["hp"]) / max(1, e.get("max_hp", e["hp"]))
-            bar_w = max(14, s)
-            self.canvas.create_rectangle(x - bar_w / 2, y - s / 2 - 8, x + bar_w / 2, y - s / 2 - 4, fill="#2a2a2a", outline="")
-            self.canvas.create_rectangle(
-                x - bar_w / 2,
-                y - s / 2 - 8,
-                x - bar_w / 2 + bar_w * hp_ratio,
-                y - s / 2 - 4,
-                fill="#67d67a",
-                outline="",
-            )
+        # timers
+        self.hp = min(self.max_hp, self.hp + self.regen/60)
+        self.wave = 1 + self.kills // 15
+        if self.hp <= 0:
+            self.hp = 0; self.running = False; self.game_over = True
+        self.shoot_cd = max(0, self.shoot_cd-1)
+        self.nova_cd = max(0, self.nova_cd-1)
+        self.freeze_cd = max(0, self.freeze_cd-1)
+        self.dash_cd = max(0, self.dash_cd-1)
+        self.freeze_timer = max(0, self.freeze_timer-1)
 
-        # player (block)
-        half = PLAYER_SIZE / 2
-        player_fill = "#4aa8ff" if self.shield_timer == 0 else "#7b8cff"
-        self.canvas.create_rectangle(
-            self.px - half, self.py - half, self.px + half, self.py + half,
-            fill=player_fill, outline="#cfe8ff", width=2
-        )
-
-        # gun line toward nearest enemy (auto-shoot aim)
-        t = self.nearest_enemy()
-        if t:
-            dx, dy = t["x"] - self.px, t["y"] - self.py
-            d = math.hypot(dx, dy) + 1e-6
-            gx = self.px + (dx / d) * 20
-            gy = self.py + (dy / d) * 20
-            self.canvas.create_line(self.px, self.py, gx, gy, fill="#e6f3ff", width=3)
-
-        # spear (points where you face / dash)
-        spear_len = 30 if self.dash_timer == 0 else 42
-        sx = self.px + self.face_x * spear_len
-        sy = self.py + self.face_y * spear_len
-        spear_color = "#f4f7ff" if self.dash_timer == 0 else "#fff07a"
-        self.canvas.create_line(self.px, self.py, sx, sy, fill=spear_color, width=5)
-
-        if self.dark_aura_on:
-            rr = 88
-            self.canvas.create_oval(self.px - rr, self.py - rr, self.px + rr, self.py + rr, outline="#7d54ff", width=2)
-
-        if self.orbit_aura_on:
-            blade_r = 46
-            for i in range(3):
-                a = self.orbit_angle + i * (2 * math.pi / 3)
-                bx = self.px + math.cos(a) * blade_r
-                by = self.py + math.sin(a) * blade_r
-                self.canvas.create_oval(bx - 6, by - 6, bx + 6, by + 6, fill="#c9a3ff", outline="#f0e0ff")
-
-        # HUD
-        if self.equipped_power in ("clone", "nova", "turret", "freeze"):
-            power_status = f"{self.power_cd//60}s" if self.power_cd > 0 else "READY"
-        elif self.equipped_power == "dark":
-            power_status = "ON" if self.dark_aura_on else "OFF"
+    def draw_enemy(self, e):
+        x,y,s = e["x"], e["y"], e["s"]
+        x1,y1,x2,y2 = x-s/2,y-s/2,x+s/2,y+s/2
+        if e["shape"]=="square":
+            self.canvas.create_rectangle(x1,y1,x2,y2,fill=e["c"],outline="#ffb3b3",width=2)
+        elif e["shape"]=="diamond":
+            self.canvas.create_polygon(x,y1,x2,y,x,y2,x1,y,fill=e["c"],outline="#ffd8ff",width=2)
+        elif e["shape"]=="triangle":
+            self.canvas.create_polygon(x,y1,x2,y2,x1,y2,fill=e["c"],outline="#ffe0c2",width=2)
         else:
-            power_status = "ON" if self.orbit_aura_on else "OFF"
-        hud = (
-            f"HP: {int(self.hp)}   Score: {self.score}   Kills: {self.kills}   Wave: {self.wave}   "
-            f"Coins: {self.coins}"
-        )
-        buffs = (
-            f"Buffs: RF {self.rapid_fire_timer//60}s | SPD {self.speed_timer//60}s | "
-            f"SHD {self.shield_timer//60}s | TRI {self.multishot_timer//60}s | "
-            f"DASH {self.dash_cd//60 if self.dash_cd>0 else 'READY'} | "
-            f"POWER {self.equipped_power.upper()}:{power_status}"
-        )
-        self.canvas.create_text(12, 10, text=hud, fill="#f0f0f0", font=("Consolas", 14, "bold"), anchor="nw")
-        self.canvas.create_text(12, 34, text=buffs, fill="#d8d8d8", font=("Consolas", 11), anchor="nw")
-        self.canvas.create_text(
-            12,
-            52,
-            text="Enemy tiers: Grunt(1-3) Brute(4-7) Runner(8-11) Elite(12+)",
-            fill="#bcbcbc",
-            font=("Consolas", 10),
-            anchor="nw",
-        )
-        self.canvas.create_text(
-            12,
-            68,
-            text=(
-                f"Perm: DMG+{self.damage_stack*4} MAXHP+{self.health_stack*12} REGEN+{self.regen_stack}/s "
-                f"LS+{self.lifesteal_stack} BSPD+{self.bullet_speed_stack} MAG+{self.magnet_stack}"
-            ),
-            fill="#9fd4ff",
-            font=("Consolas", 10),
-            anchor="nw",
-        )
-        self.canvas.create_text(WIDTH // 2, HEIGHT - 12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
+            h=s*0.5
+            self.canvas.create_polygon(x-h*.9,y-h,x+h*.9,y-h,x+h*1.4,y,x+h*.9,y+h,x-h*.9,y+h,x-h*1.4,y,fill=e["c"],outline="#e9ccff",width=2)
+
+    def draw(self):
+        c = self.canvas
+        c.delete("all")
+        for x in range(0, WIDTH, 40): c.create_line(x,0,x,HEIGHT,fill="#181818")
+        for y in range(0, HEIGHT, 40): c.create_line(0,y,WIDTH,y,fill="#181818")
+
+        # drops
+        labels = {"heal":"H","rapid":"R","speed":"S","shield":"D","multi":"T","damage":"+DMG","maxhp":"+HP","regen":"+RG","bspeed":"+BS","magnet":"+MG"}
+        for p in self.powerups:
+            s=POWERUP_SIZE
+            c.create_oval(p["x"]-s/2,p["y"]-s/2,p["x"]+s/2,p["y"]+s/2,fill=p["c"],outline="#fff")
+            c.create_text(p["x"],p["y"],text=labels[p["k"]],fill="#111",font=("Consolas",7,"bold"))
+
+        for b in self.bullets:
+            r=b["r"]; c.create_oval(b["x"]-r,b["y"]-r,b["x"]+r,b["y"]+r,fill="#ffd84d",outline="")
+
+        for t in self.turrets:
+            s=16
+            c.create_rectangle(t["x"]-s/2,t["y"]-s/2,t["x"]+s/2,t["y"]+s/2,fill="#ffdca8",outline="#fff3dd",width=2)
+
+        for e in self.enemies: self.draw_enemy(e)
+
+        # player
+        h=PLAYER_SIZE/2
+        c.create_rectangle(self.px-h,self.py-h,self.px+h,self.py+h,fill="#4aa8ff",outline="#cfe8ff",width=2)
+        spear = 42 if self.dash_t>0 else 30
+        c.create_line(self.px,self.py,self.px+self.face_x*spear,self.py+self.face_y*spear,fill="#fff07a" if self.dash_t>0 else "#f4f7ff",width=5)
+
+        if self.dark_active:
+            rr=88; c.create_oval(self.px-rr,self.py-rr,self.px+rr,self.py+rr,outline="#7d54ff",width=2)
+        if self.orbit_active:
+            for i in range(3):
+                a=self.orbit_a+i*2.094
+                bx,by=self.px+math.cos(a)*46,self.py+math.sin(a)*46
+                c.create_oval(bx-6,by-6,bx+6,by+6,fill="#c9a3ff",outline="#f0e0ff")
+
+        hud = f"HP {int(self.hp)}/{self.max_hp}  Coins {self.coins}  Wave {self.wave}  Kills {self.kills}  Relics {len(self.relic_owned)}/52"
+        c.create_text(10,10,text=hud,anchor="nw",fill="#f0f0f0",font=("Consolas",13,"bold"))
+        c.create_text(10,30,text=f"Aura:Dark {'ON' if self.dark_active else 'OFF'} Orbit {'ON' if self.orbit_active else 'OFF'} | NovaLv {self.nova_level} TurretLv {self.turret_level} FreezeLv {self.freeze_level}",anchor="nw",fill="#d0d0d0",font=("Consolas",10))
+        c.create_text(WIDTH//2, HEIGHT-12, text=self.banner, fill="#cfcfcf", font=("Consolas", 11), anchor="s")
 
         if self.shop_open:
-            self.canvas.create_rectangle(170, 140, WIDTH - 170, HEIGHT - 140, fill="#0f0f15", outline="#9b8cff", width=3)
-            shop_text = (
-                "SHOP (Press P to close)\n\n"
-                f"[1] DARK AURA    ({'OWNED' if self.unlocked_powers['dark'] else str(self.power_cost('dark')) + ' coins'})\n"
-                f"[2] ORBIT BLADES ({'OWNED' if self.unlocked_powers['orbit'] else str(self.power_cost('orbit')) + ' coins'})\n"
-                f"[3] CLONE RUSH   ({'OWNED' if self.unlocked_powers['clone'] else str(self.power_cost('clone')) + ' coins'})\n"
-                f"[4] BLOOD NOVA   ({'OWNED' if self.unlocked_powers['nova'] else str(self.power_cost('nova')) + ' coins'})\n"
-                f"[5] AUTO TURRET  ({'OWNED' if self.unlocked_powers['turret'] else str(self.power_cost('turret')) + ' coins'})\n"
-                f"[6] TIME FREEZE  ({'OWNED' if self.unlocked_powers['freeze'] else str(self.power_cost('freeze')) + ' coins'})\n\n"
-                "Press 1-6 to buy/equip.\n"
-                "In battle press Q to use/toggle equipped power."
+            c.create_rectangle(140,100,WIDTH-140,HEIGHT-100,fill="#0f0f15",outline="#9b8cff",width=3)
+            txt = (
+                "SHOP (P to close)\n\n"
+                "[1] Dark Aura (instant always ON) - 100\n"
+                "[2] Orbit Blades (instant always ON) - 180\n"
+                f"[3] Blood Nova level ({140 + self.nova_level*120})\n"
+                f"[4] Auto Turret level ({180 + self.turret_level*140})\n"
+                f"[5] Time Freeze level ({160 + self.freeze_level*130})\n"
+                f"[6] Buy RANDOM UNIQUE RELIC ({90 + 8*len(self.relic_owned)})\n\n"
+                "Relics are 52 unique permanent powerups."
             )
-            self.canvas.create_text(WIDTH // 2, HEIGHT // 2, text=shop_text, fill="#efe8ff", font=("Consolas", 16, "bold"), justify="center")
+            c.create_text(WIDTH//2, HEIGHT//2, text=txt, fill="#efe8ff", font=("Consolas", 15, "bold"), justify="center")
 
-    # ---------- Main loop ----------
-    def update(self):
-        self.frame_count += 1
+        if self.game_over:
+            c.create_text(WIDTH//2, HEIGHT//2, text="GAME OVER\nPress R", fill="#ffd2a6", font=("Consolas", 28, "bold"), justify="center")
 
-        if self.running and not self.shop_open:
-            self.move_player()
-            self.update_dash()
-            self.auto_shoot()
-            self.update_bullets()
-            self.update_enemies()
-            self.collect_powerups()
-            self.update_progression()
-            self.update_powers()
-            self.tick_buffs()
-
-        if self.shoot_cd > 0:
-            self.shoot_cd -= 1
-        if self.dash_cd > 0:
-            self.dash_cd -= 1
-        if self.power_cd > 0:
-            self.power_cd -= 1
-
+    def tick(self):
+        self.update_logic()
         self.draw()
-        self.root.after(FPS_MS, self.update)
+        self.root.after(FPS, self.tick)
 
 
 def main():
     root = tk.Tk()
-    _game = SurvivorGame(root)
+    root.resizable(False, False)
+    Game(root)
     root.mainloop()
-
 
 if __name__ == "__main__":
     main()

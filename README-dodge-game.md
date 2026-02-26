@@ -1,54 +1,25 @@
 # Block Survivor (Python)
 
-Survivor game in Python + Tkinter:
-- You are a blue block with a gun
-- Auto-shoots nearest enemy
-- Dash + spear attack
-- Evolving enemy tiers
-- Stackable powerups
-- Shop + active powers
+Updated per your request:
+- Bought powers activate instantly (no manual toggle)
+- Lifesteal removed
+- Added **52 unique permanent relic powerups**
 
-## Powerups
+## Shop (press `P`)
+- `1` Dark Aura (always on after buy)
+- `2` Orbit Blades (always on after buy)
+- `3` Blood Nova level up
+- `4` Auto Turret level up + deploy
+- `5` Time Freeze level up
+- `6` Buy random unique relic (52 total, permanent)
 
-Timed stackable drops:
-- **Heal** (green): restores HP
-- **Rapid Fire** (yellow): shoot faster
-- **Speed Boost** (cyan): move faster
-- **Shield** (purple): reduced contact damage
-- **Triple Shot** (pink): fire 3 bullets
-
-Permanent drops (do not run out):
-- **Damage Core**
-- **Max HP Core**
-- **Regen Core**
-- **Lifesteal Core**
-- **Bullet Speed Core**
-- **Magnet Core**
-
-## Shop + Powers
-
-- Press **P** to open/close shop
-- Buy/equip powers with **1..6**
-- Press **Q** in combat for equipped power
-
-Powers:
-- **Dark Aura** (toggle)
-- **Orbit Blades** (toggle)
-- **Clone Rush** (temporary)
-- **Blood Nova** (big AoE burst)
-- **Auto Turret** (deploy turret)
-- **Time Freeze** (slow enemies hard)
+## Controls
+- Move: `WASD` / Arrows
+- Dash + spear hit: `Space`
+- Shop: `P`
+- Restart: `R`
 
 ## Run
-
 ```bash
 python dodge_game.py
 ```
-
-## Controls
-
-- Move: `WASD` or Arrow keys
-- Dash + spear hit: `Spacebar`
-- Open shop: `P`
-- Use equipped power / toggle power: `Q`
-- Restart after death: `R`
