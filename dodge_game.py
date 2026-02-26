@@ -45,7 +45,7 @@ class Game:
             {"id":"time_freeze","name":"Time Freeze","cost":170,"kind":"cast"},
             {"id":"auto_turret","name":"Auto Turret","cost":180,"kind":"cast"},
             {"id":"chain_lightning","name":"Chain Lightning","cost":190,"kind":"cast"},
-            {"id":"meteor_drop","name":"Meteor Drop","cost":210,"kind":"cast"},
+            {"id":"meteor_drop","name":"Meteor Shower","cost":210,"kind":"cast"},
             {"id":"poison_cloud","name":"Poison Cloud","cost":150,"kind":"toggle"},
             {"id":"spike_ring","name":"Spike Ring","cost":145,"kind":"toggle"},
             {"id":"blade_dash_plus","name":"Blade Dash+","cost":120,"kind":"passive"},
@@ -57,31 +57,31 @@ class Game:
             {"id":"magnet_core","name":"Magnet Core","cost":125,"kind":"passive"},
             {"id":"ricochet_shot","name":"Ricochet Shot","cost":160,"kind":"passive"},
             {"id":"split_shot","name":"Split Shot","cost":170,"kind":"passive"},
-            {"id":"vamp_pulse","name":"Vamp Pulse","cost":180,"kind":"cast"},
-            {"id":"shockwave_step","name":"Shockwave Step","cost":165,"kind":"cast"},
+            {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast"},
+            {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive"},
         ]
 
         self.descriptions = {
-            "dark_aura":"Toggle aura that damages nearby enemies.",
-            "orbit_blades":"Toggle 3 spinning blades around you.",
-            "blood_nova":"Instant big AoE burst around player.",
-            "time_freeze":"Slows all enemies for a short time.",
-            "auto_turret":"Deploys a temporary auto-firing turret.",
-            "chain_lightning":"Zaps nearest enemies in a chain.",
-            "meteor_drop":"Drops meteors randomly on enemies.",
-            "poison_cloud":"Toggle poison cloud around player.",
-            "spike_ring":"Toggle outer ring damage zone.",
-            "blade_dash_plus":"Dash hits much harder and longer.",
+            "dark_aura":"Aura gets bigger/stronger per level.",
+            "orbit_blades":"Rings go farther and hit harder per level.",
+            "blood_nova":"Bigger nova radius and damage per level.",
+            "time_freeze":"Longer and stronger freeze each level.",
+            "auto_turret":"Deploy stronger turret and visible bullets.",
+            "chain_lightning":"More targets and damage per level.",
+            "meteor_drop":"Red warning circles then explosion, random map.",
+            "poison_cloud":"Bigger cloud and damage per level.",
+            "spike_ring":"Ring radius and damage increase per level.",
+            "blade_dash_plus":"Dash gets longer and stronger.",
             "rapid_core":"Permanent faster fire rate.",
             "damage_core":"Permanent bullet damage up.",
             "speed_core":"Permanent movement speed up.",
             "regen_core":"Permanent HP regeneration.",
             "maxhp_core":"Permanent max HP up.",
             "magnet_core":"Pulls drops toward you.",
-            "ricochet_shot":"Bullets pierce one extra enemy.",
-            "split_shot":"Shoots 3 bullets each attack.",
-            "vamp_pulse":"Steals life from nearby enemies.",
-            "shockwave_step":"Launches directional shockwave.",
+            "ricochet_shot":"Bullets pierce more with levels.",
+            "split_shot":"More spread strength.",
+            "clone_swarm":"Spawns attacking clones.",
+            "rpg_launcher":"Also fires rockets while shooting bullets.",
         }
 
     def reset(self):
@@ -101,7 +101,10 @@ class Game:
         self.bullets = []
         self.drops = []
         self.turrets = []
+        self.turret_bullets = []
         self.meteors = []
+        self.clones = []
+        self.rockets = []
 
         self.spawn_ms = SPAWN_MS
         self.frame = 0
@@ -117,6 +120,7 @@ class Game:
 
         # power ownership and runtime
         self.owned = set()
+        self.power_lv = {}
         self.active_toggles = set()
 
         # stats from passives
@@ -174,28 +178,14 @@ class Game:
 
     # ---------- power system ----------
     def power_cost(self, p):
-        # repeat buys increase cost only for cast powers
         pid = p["id"]
         base = p["cost"]
-        levels = getattr(self, f"lvl_{pid}", 0)
-        return base + levels * 40 if p["kind"] == "cast" else base
+        lv = self.power_lv.get(pid, 0)
+        return base + lv * 45
 
     def buy_or_use_power(self, p):
         pid = p["id"]
         kind = p["kind"]
-
-        if kind in ("toggle", "passive") and pid in self.owned:
-            # toggles can be turned on/off by clicking again
-            if kind == "toggle":
-                if pid in self.active_toggles:
-                    self.active_toggles.remove(pid)
-                    self.banner = f"{p['name']} OFF"
-                else:
-                    self.active_toggles.add(pid)
-                    self.banner = f"{p['name']} ON"
-            else:
-                self.banner = f"{p['name']} already owned"
-            return
 
         cost = self.power_cost(p)
         if self.coins < cost:
@@ -203,70 +193,58 @@ class Game:
             return
 
         self.coins -= cost
+        new_lv = self.power_lv.get(pid, 0) + 1
+        self.power_lv[pid] = new_lv
+        self.owned.add(pid)
 
         if kind in ("toggle", "passive"):
-            self.owned.add(pid)
             if kind == "toggle":
-                self.active_toggles.add(pid)  # instantly active as requested
-            self.apply_passive(pid)
-            self.banner = f"Bought {p['name']}"
+                self.active_toggles.add(pid)  # always on after buy
+            self.apply_passive(pid, new_lv)
+            self.banner = f"{p['name']} upgraded to Lv{new_lv}"
         else:
-            # cast power: buy level + instant cast once
-            lv = getattr(self, f"lvl_{pid}", 0) + 1
-            setattr(self, f"lvl_{pid}", lv)
-            self.cast_power(pid)
-            self.banner = f"{p['name']} Lv{lv}"
+            self.cast_power(pid, new_lv)
+            self.banner = f"{p['name']} cast Lv{new_lv}"
 
-    def apply_passive(self, pid):
+    def apply_passive(self, pid, lv):
         if pid == "rapid_core": self.stat_rapid += 1
         elif pid == "damage_core": self.stat_damage += 8
-        elif pid == "speed_core": self.stat_speed += 0.6
-        elif pid == "regen_core": self.stat_regen += 0.22
-        elif pid == "maxhp_core": self.max_hp += 30; self.hp += 30
-        elif pid == "magnet_core": self.stat_magnet += 45
+        elif pid == "speed_core": self.stat_speed += 0.55
+        elif pid == "regen_core": self.stat_regen += 0.2
+        elif pid == "maxhp_core": self.max_hp += 24; self.hp += 24
+        elif pid == "magnet_core": self.stat_magnet += 35
         elif pid == "ricochet_shot": self.stat_ricochet = True
         elif pid == "split_shot": self.stat_split = True
         elif pid == "blade_dash_plus": self.stat_dash_plus = True
+        elif pid == "rpg_launcher":
+            pass
 
-    def cast_power(self, pid):
-        # cast powers triggered on purchase and can be re-bought for more levels
-        lv = getattr(self, f"lvl_{pid}", 1)
+    def cast_power(self, pid, lv):
         if pid == "blood_nova":
-            r = 130 + lv * 18
-            dmg = 55 + lv * 20
+            r = 130 + lv * 22
+            dmg = 55 + lv * 22
             for en in self.enemies:
                 if math.hypot(en["x"] - self.px, en["y"] - self.py) <= r:
                     en["hp"] -= dmg
         elif pid == "time_freeze":
-            self.freeze_t = max(self.freeze_t, 80 + lv * 25)
+            self.freeze_t = max(self.freeze_t, 80 + lv * 30)
         elif pid == "auto_turret":
-            self.turrets.append({"x": self.px, "y": self.py, "ttl": 280 + lv * 70, "cd": 0, "lv": lv})
+            self.turrets.append({"x": self.px, "y": self.py, "ttl": 280 + lv * 70, "cd": 0, "lv": lv, "hp": 50 + lv*25, "max": 50 + lv*25})
         elif pid == "chain_lightning":
             targets = sorted(self.enemies, key=lambda e: (e["x"]-self.px)**2 + (e["y"]-self.py)**2)[:(3 + lv)]
-            dmg = 35 + lv * 10
+            dmg = 35 + lv * 12
             for t in targets:
                 t["hp"] -= dmg
         elif pid == "meteor_drop":
             for _ in range(2 + lv):
-                if self.enemies:
-                    t = random.choice(self.enemies)
-                    self.meteors.append({"x": t["x"], "y": t["y"], "t": 30, "dmg": 50 + lv * 14})
-        elif pid == "vamp_pulse":
-            total = 0
-            for en in self.enemies:
-                if math.hypot(en["x"] - self.px, en["y"] - self.py) <= 120 + lv * 8:
-                    en["hp"] -= 30 + lv * 10
-                    total += 6 + lv * 2
-            self.hp = min(self.max_hp, self.hp + total)
-        elif pid == "shockwave_step":
-            # directional line damage
-            for en in self.enemies:
-                vx, vy = en["x"] - self.px, en["y"] - self.py
-                forward = vx * self.face_x + vy * self.face_y
-                side = abs(vx * (-self.face_y) + vy * self.face_x)
-                if 0 < forward < 220 + lv * 30 and side < 25 + lv * 5:
-                    en["hp"] -= 45 + lv * 14
-
+                rx = random.randint(40, WORLD_W - 40)
+                ry = random.randint(40, HEIGHT - 40)
+                self.meteors.append({"x": rx, "y": ry, "t": 40, "max_t": 40, "dmg": 60 + lv * 16, "r": 70 + lv*8})
+        elif pid == "clone_swarm":
+            for _ in range(1 + lv // 2):
+                self.clones.append({"x": self.px, "y": self.py, "ttl": 260 + lv*20, "lv": lv})
+        elif pid == "rpg_launcher":
+            pass
     # ---------- gameplay ----------
     def spawn_enemy(self):
         if self.running:
@@ -330,7 +308,13 @@ class Game:
         for s in spread:
             a = base + s
             sp = BASE_BULLET_SPEED + self.stat_damage * 0.04
-            self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": 1 if self.stat_ricochet else 0})
+            self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": self.power_lv.get("ricochet_shot",0)})
+
+        # RPG launcher shoots rockets in addition to bullets
+        rpg_lv = self.power_lv.get("rpg_launcher", 0)
+        if rpg_lv > 0 and self.frame % max(22, 80 - rpg_lv*8) == 0:
+            rv = 5.8 + rpg_lv * 0.7
+            self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base)*rv, "vy": math.sin(base)*rv, "dmg": 80 + rpg_lv*26, "r": 56 + rpg_lv*6})
 
         cd = int(BASE_FIRE_CD * (1 - 0.12 * self.stat_rapid))
         self.shoot_cd = max(3, cd)
@@ -369,29 +353,44 @@ class Game:
 
         # toggles always active when bought
         if "dark_aura" in self.active_toggles:
+            lv = self.power_lv.get("dark_aura", 1)
+            dark_r = 88 + lv * 12
+            dark_dmg = 1.6 + lv * 0.45
             for en in self.enemies:
-                if math.hypot(en["x"] - self.px, en["y"] - self.py) <= 88 + en["s"] / 2:
-                    en["hp"] -= 1.8
+                if math.hypot(en["x"] - self.px, en["y"] - self.py) <= dark_r + en["s"] / 2:
+                    en["hp"] -= dark_dmg
 
         if "poison_cloud" in self.active_toggles:
+            lv = self.power_lv.get("poison_cloud", 1)
+            pr = 125 + lv * 10
             for en in self.enemies:
-                if math.hypot(en["x"] - self.px, en["y"] - self.py) <= 125 + en["s"] / 2:
-                    en["hp"] -= 1.1
+                if math.hypot(en["x"] - self.px, en["y"] - self.py) <= pr + en["s"] / 2:
+                    en["hp"] -= 1.0 + lv*0.28
 
         if "spike_ring" in self.active_toggles:
+            lv = self.power_lv.get("spike_ring", 1)
+            r1 = 105 + lv * 8
+            r2 = 130 + lv * 10
             for en in self.enemies:
                 d = math.hypot(en["x"] - self.px, en["y"] - self.py)
-                if 105 <= d <= 130:
-                    en["hp"] -= 2.3
+                if r1 <= d <= r2:
+                    en["hp"] -= 2.0 + lv * 0.5
 
         if "orbit_blades" in self.active_toggles:
-            self.orbit_angle += 0.2
+            lv = self.power_lv.get("orbit_blades", 1)
+            self.orbit_angle += 0.18 + lv*0.01
+            orbit_r = 46 + lv * 7
             for i in range(3):
                 a = self.orbit_angle + i * (2 * math.pi / 3)
-                bx, by = self.px + math.cos(a) * 46, self.py + math.sin(a) * 46
+                bx, by = self.px + math.cos(a) * orbit_r, self.py + math.sin(a) * orbit_r
                 for en in self.enemies:
-                    if math.hypot(en["x"] - bx, en["y"] - by) <= en["s"] / 2 + 11:
-                        en["hp"] -= 6
+                    if math.hypot(en["x"] - bx, en["y"] - by) <= en["s"] / 2 + 11 + lv:
+                        en["hp"] -= 5 + lv*1.2
+
+        # laser gun upgrade from damage core levels
+        if self.power_lv.get("damage_core", 0) >= 2 and self.enemies:
+            t = self.nearest_enemy()
+            t["hp"] -= 1.0 + self.power_lv.get("damage_core",0)*0.5
 
         # auto-fire
         self.fire()
@@ -416,32 +415,89 @@ class Game:
                 alive_b.append(b)
         self.bullets = alive_b
 
-        # turrets
+        # turrets (visible bullets)
         alive_t = []
         for t in self.turrets:
             t["ttl"] -= 1
             t["cd"] = max(0, t["cd"] - 1)
-            if t["ttl"] <= 0:
+            if t["ttl"] <= 0 or t["hp"] <= 0:
                 continue
             if self.enemies and t["cd"] == 0:
                 target = min(self.enemies, key=lambda e: (e["x"] - t["x"])**2 + (e["y"] - t["y"])**2)
-                if math.hypot(target["x"] - t["x"], target["y"] - t["y"]) < 270:
-                    target["hp"] -= 24 + t["lv"] * 8
-                    t["cd"] = 12
+                dx, dy = target["x"]-t["x"], target["y"]-t["y"]
+                d = math.hypot(dx, dy) + 1e-6
+                if d < 300:
+                    sp = 9 + t["lv"]*0.6
+                    self.turret_bullets.append({"x": t["x"], "y": t["y"], "vx": dx/d*sp, "vy": dy/d*sp, "dmg": 20+t["lv"]*8, "ttl": 80})
+                    t["cd"] = max(6, 14 - t["lv"])
             alive_t.append(t)
         self.turrets = alive_t
 
-        # meteors
+        # turret bullets update
+        alive_tb = []
+        for b in self.turret_bullets:
+            b["x"] += b["vx"]
+            b["y"] += b["vy"]
+            b["ttl"] -= 1
+            if b["ttl"] <= 0:
+                continue
+            hit = False
+            for en in self.enemies:
+                if math.hypot(en["x"]-b["x"], en["y"]-b["y"]) <= en["s"]/2 + 4:
+                    en["hp"] -= b["dmg"]
+                    hit = True
+                    break
+            if not hit:
+                alive_tb.append(b)
+        self.turret_bullets = alive_tb
+
+        # meteors (red circles shrink then explode)
         alive_m = []
         for m in self.meteors:
             m["t"] -= 1
             if m["t"] <= 0:
                 for en in self.enemies:
-                    if math.hypot(en["x"] - m["x"], en["y"] - m["y"]) < 70:
+                    if math.hypot(en["x"] - m["x"], en["y"] - m["y"]) < m["r"]:
                         en["hp"] -= m["dmg"]
             else:
                 alive_m.append(m)
         self.meteors = alive_m
+
+        # clones
+        alive_c = []
+        for c in self.clones:
+            c["ttl"] -= 1
+            if c["ttl"] <= 0:
+                continue
+            if self.enemies:
+                t = min(self.enemies, key=lambda e: (e["x"]-c["x"])**2 + (e["y"]-c["y"])**2)
+                dx, dy = t["x"]-c["x"], t["y"]-c["y"]
+                d = math.hypot(dx,dy) + 1e-6
+                c["x"] += dx/d * (4.5 + c["lv"]*0.25)
+                c["y"] += dy/d * (4.5 + c["lv"]*0.25)
+                if d < t["s"]/2 + 10:
+                    t["hp"] -= 14 + c["lv"]*4
+            alive_c.append(c)
+        self.clones = alive_c
+
+        # rockets
+        alive_r = []
+        for r in self.rockets:
+            r["x"] += r["vx"]
+            r["y"] += r["vy"]
+            if r["x"] < -20 or r["x"] > WORLD_W+20 or r["y"] < -20 or r["y"] > HEIGHT+20:
+                continue
+            hit = False
+            for en in self.enemies:
+                if math.hypot(en["x"]-r["x"], en["y"]-r["y"]) <= en["s"]/2 + 7:
+                    for aoe in self.enemies:
+                        if math.hypot(aoe["x"]-r["x"], aoe["y"]-r["y"]) < r["r"]:
+                            aoe["hp"] -= r["dmg"]
+                    hit = True
+                    break
+            if not hit:
+                alive_r.append(r)
+        self.rockets = alive_r
 
         # enemies
         alive_e = []
@@ -453,6 +509,10 @@ class Game:
             en["y"] += (dy / d) * en["sp"] * mul
             if d <= en["s"] / 2 + PLAYER_SIZE / 2:
                 self.hp -= 0.45
+
+            for t in self.turrets:
+                if math.hypot(en["x"]-t["x"], en["y"]-t["y"]) <= en["s"]/2 + 10:
+                    t["hp"] -= 0.55
 
             if en["hp"] <= 0:
                 self.kills += 1
@@ -538,7 +598,7 @@ class Game:
 
             owned = p["id"] in self.owned
             active = p["id"] in self.active_toggles
-            lv = getattr(self, f"lvl_{p['id']}", 0)
+            lv = self.power_lv.get(p["id"], 0)
             cost = self.power_cost(p)
 
             bg = "#20203a" if owned else "#171729"
@@ -547,20 +607,16 @@ class Game:
 
             c.create_rectangle(WORLD_W + 10, y, WIDTH - 10, y + row_h - 2, fill=bg, outline="#3d3d60")
 
-            status = ""
-            if p["kind"] == "cast":
-                status = f"Lv{lv}" if lv > 0 else f"{cost}c"
-            elif owned:
-                status = "ON" if active else "OWNED"
-            else:
-                status = f"{cost}c"
+            status = f"Lv{lv} | {cost}c"
+            if p["kind"] == "toggle" and active:
+                status = f"ON Lv{lv} | {cost}c"
 
             c.create_text(WORLD_W + 16, y + 14, anchor="w", fill="#f0f0ff", font=("Consolas", 10, "bold"), text=p["name"])
             c.create_text(WIDTH - 18, y + 14, anchor="e", fill="#b8ffd0" if active else "#f8d9a8", font=("Consolas", 9, "bold"), text=status)
 
         # hovered/selected description not tracked; show tip
         c.create_text(WORLD_W + 10, HEIGHT - 50, anchor="nw", fill="#bfc3ff", font=("Consolas", 9),
-                      text="Tip: buy toggle/passive once.\nCast powers can be bought repeatedly for levels.")
+                      text="Every power can be leveled.\nRight value shows next upgrade cost.")
 
     def draw(self):
         c = self.canvas
@@ -581,15 +637,34 @@ class Game:
             r = b["r"]
             c.create_oval(b["x"]-r, b["y"]-r, b["x"]+r, b["y"]+r, fill="#ffd84d", outline="")
 
+        for rb in self.rockets:
+            c.create_oval(rb["x"]-5, rb["y"]-5, rb["x"]+5, rb["y"]+5, fill="#ff8855", outline="#ffd9c7")
+
+        for tb in self.turret_bullets:
+            c.create_oval(tb["x"]-3, tb["y"]-3, tb["x"]+3, tb["y"]+3, fill="#9cf5ff", outline="")
+
         for t in self.turrets:
             s = 16
             c.create_rectangle(t["x"]-s/2, t["y"]-s/2, t["x"]+s/2, t["y"]+s/2, fill="#ffdca8", outline="#fff3dd", width=2)
+            # turret hp bar
+            ratio = max(0, t["hp"]) / max(1, t["max"])
+            c.create_rectangle(t["x"]-14, t["y"]-14, t["x"]+14, t["y"]-10, fill="#2b2b2b", outline="")
+            c.create_rectangle(t["x"]-14, t["y"]-14, t["x"]-14+28*ratio, t["y"]-10, fill="#67d67a", outline="")
+
+        for cl in self.clones:
+            c.create_rectangle(cl["x"]-7, cl["y"]-7, cl["x"]+7, cl["y"]+7, fill="#7cefff", outline="#d8fbff")
 
         for m in self.meteors:
-            c.create_oval(m["x"]-8, m["y"]-8, m["x"]+8, m["y"]+8, fill="#ff7a44", outline="#ffd2b0")
+            rr = m["r"] * (m["t"]/m["max_t"])
+            c.create_oval(m["x"]-rr, m["y"]-rr, m["x"]+rr, m["y"]+rr, outline="#ff4b4b", width=2)
 
         for en in self.enemies:
             self.draw_enemy(en)
+            # enemy hp bar
+            rw = max(16, en["s"])
+            ratio = max(0, en["hp"]) / max(1, en["max"])
+            c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]+rw/2, en["y"]-en["s"]/2-3, fill="#2b2b2b", outline="")
+            c.create_rectangle(en["x"]-rw/2, en["y"]-en["s"]/2-7, en["x"]-rw/2 + rw*ratio, en["y"]-en["s"]/2-3, fill="#67d67a", outline="")
 
         # player
         h = PLAYER_SIZE / 2
@@ -599,22 +674,31 @@ class Game:
                       fill="#fff07a" if self.dash_t > 0 else "#f4f7ff", width=5)
 
         if "dark_aura" in self.active_toggles:
-            rr = 88
+            lv = self.power_lv.get("dark_aura",1)
+            rr = 88 + lv*12
             c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#7d54ff", width=2)
 
         if "poison_cloud" in self.active_toggles:
-            rr = 125
+            lv = self.power_lv.get("poison_cloud",1)
+            rr = 125 + lv*10
             c.create_oval(self.px-rr, self.py-rr, self.px+rr, self.py+rr, outline="#5dcf73", width=1)
 
         if "spike_ring" in self.active_toggles:
-            c.create_oval(self.px-105, self.py-105, self.px+105, self.py+105, outline="#ffcc88", width=1)
-            c.create_oval(self.px-130, self.py-130, self.px+130, self.py+130, outline="#ffcc88", width=1)
+            lv = self.power_lv.get("spike_ring",1)
+            c.create_oval(self.px-(105+lv*8), self.py-(105+lv*8), self.px+(105+lv*8), self.py+(105+lv*8), outline="#ffcc88", width=1)
+            c.create_oval(self.px-(130+lv*10), self.py-(130+lv*10), self.px+(130+lv*10), self.py+(130+lv*10), outline="#ffcc88", width=1)
 
         if "orbit_blades" in self.active_toggles:
+            lv = self.power_lv.get("orbit_blades",1)
+            orbit_r = 46 + lv*7
             for i in range(3):
                 a = self.orbit_angle + i * (2 * math.pi / 3)
-                bx, by = self.px + math.cos(a) * 46, self.py + math.sin(a) * 46
+                bx, by = self.px + math.cos(a) * orbit_r, self.py + math.sin(a) * orbit_r
                 c.create_oval(bx-6, by-6, bx+6, by+6, fill="#c9a3ff", outline="#f0e0ff")
+
+        if self.power_lv.get("damage_core",0) >= 2 and self.enemies:
+            t = self.nearest_enemy()
+            c.create_line(self.px, self.py, t["x"], t["y"], fill="#ff4d4d", width=2)
 
         # HUD
         c.create_text(10, 10, anchor="nw", fill="#f0f0f0", font=("Consolas", 13, "bold"),
