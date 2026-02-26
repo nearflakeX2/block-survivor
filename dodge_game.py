@@ -134,6 +134,7 @@ class Game:
         self.decoys = []
         self.totems = []
         self.enemy_bullets = []
+        self.fx = {"flame": [], "shock": [], "laser": [], "hook": [], "throw": [], "zap": []}
 
         self.shake_t = 0
         self.shake_mag = 0
@@ -163,6 +164,11 @@ class Game:
             "frost_mine": 0,
             "decoy_hologram": 0,
             "thunder_totem": 0,
+            "flamethrower_arc": 0,
+            "shockwave_stomp": 0,
+            "orbital_laser": 0,
+            "chain_hook": 0,
+            "shield_drone": 0,
         }
 
         # base cooldown lengths (reduced by higher levels for cast powers)
@@ -177,6 +183,11 @@ class Game:
             "frost_mine": 140,
             "decoy_hologram": 170,
             "thunder_totem": 200,
+            "flamethrower_arc": 14,
+            "shockwave_stomp": 150,
+            "orbital_laser": 170,
+            "chain_hook": 120,
+            "shield_drone": 22,
         }
 
         # power ownership and runtime
@@ -352,13 +363,21 @@ class Game:
             for _ in range(1 + lv // 2):
                 self.clones.append({"x": self.px, "y": self.py, "ttl": 260 + lv*20, "lv": lv})
         elif pid == "black_hole_core":
-            self.black_holes.append({"x": self.px + self.face_x*100, "y": self.py + self.face_y*100, "t": 120 + lv*12, "r": 90 + lv*10, "lv": lv})
+            tx, ty = self.px + self.face_x*100, self.py + self.face_y*100
+            self.black_holes.append({"x": tx, "y": ty, "t": 120 + lv*12, "r": 90 + lv*10, "lv": lv})
+            self.fx["throw"].append({"x1": self.px, "y1": self.py, "x2": tx, "y2": ty, "t": 12, "c": "#9b7bff"})
         elif pid == "frost_mine":
-            self.frost_mines.append({"x": self.px, "y": self.py, "t": 360, "r": 85 + lv*8, "lv": lv})
+            tx, ty = self.px + self.face_x*35, self.py + self.face_y*35
+            self.frost_mines.append({"x": tx, "y": ty, "t": 360, "r": 85 + lv*8, "lv": lv})
+            self.fx["throw"].append({"x1": self.px, "y1": self.py, "x2": tx, "y2": ty, "t": 10, "c": "#9fd6ff"})
         elif pid == "decoy_hologram":
-            self.decoys.append({"x": self.px + random.randint(-80,80), "y": self.py + random.randint(-80,80), "t": 260 + lv*40, "lv": lv})
+            tx, ty = self.px + random.randint(-80,80), self.py + random.randint(-80,80)
+            self.decoys.append({"x": tx, "y": ty, "t": 260 + lv*40, "lv": lv})
+            self.fx["throw"].append({"x1": self.px, "y1": self.py, "x2": tx, "y2": ty, "t": 10, "c": "#7bf0ff"})
         elif pid == "thunder_totem":
-            self.totems.append({"x": self.px, "y": self.py, "t": 320 + lv*40, "lv": lv, "cd": 0})
+            tx, ty = self.px + self.face_x*25, self.py + self.face_y*25
+            self.totems.append({"x": tx, "y": ty, "t": 320 + lv*40, "lv": lv, "cd": 0})
+            self.fx["throw"].append({"x1": self.px, "y1": self.py, "x2": tx, "y2": ty, "t": 10, "c": "#ffd28c"})
         elif pid == "rpg_launcher":
             pass
     # ---------- gameplay ----------
@@ -543,12 +562,13 @@ class Game:
                     if math.hypot(en["x"] - bx, en["y"] - by) <= en["s"] / 2 + 11 + lv:
                         en["hp"] -= 5 + lv*1.2
 
-        if "shield_drone" in self.active_toggles:
+        if "shield_drone" in self.active_toggles and self.cooldowns["shield_drone"] <= 0:
             lv = self.power_lv.get("shield_drone", 1)
             sr = 34 + lv * 5
             for en in self.enemies:
                 if math.hypot(en["x"]-self.px, en["y"]-self.py) <= sr + en["s"]/2:
                     en["hp"] -= 3 + lv
+            self.cooldowns["shield_drone"] = self.get_cooldown_max("shield_drone", lv)
 
         # laser gun upgrade from damage core levels
         if self.power_lv.get("damage_core", 0) >= 2 and self.enemies:
@@ -556,7 +576,7 @@ class Game:
             t["hp"] -= 1.0 + self.power_lv.get("damage_core",0)*0.5
 
         # flamethrower arc
-        if self.stat_flamer > 0:
+        if self.stat_flamer > 0 and self.cooldowns["flamethrower_arc"] <= 0:
             for en in self.enemies:
                 dx, dy = en["x"] - self.px, en["y"] - self.py
                 d = math.hypot(dx, dy) + 1e-6
@@ -565,29 +585,37 @@ class Game:
                     dot = ndx * self.face_x + ndy * self.face_y
                     if dot > 0.58:
                         en["hp"] -= 0.7 + self.stat_flamer * 0.35
+            self.fx["flame"].append({"x": self.px, "y": self.py, "fx": self.face_x, "fy": self.face_y, "t": 8})
+            self.cooldowns["flamethrower_arc"] = self.get_cooldown_max("flamethrower_arc", self.stat_flamer)
 
         # shockwave stomp pulse
-        if self.stat_shockwave > 0 and self.frame % max(45, 150 - self.stat_shockwave*18) == 0:
+        if self.stat_shockwave > 0 and self.cooldowns["shockwave_stomp"] <= 0:
             rr = 90 + self.stat_shockwave * 16
             for en in self.enemies:
                 if math.hypot(en["x"]-self.px, en["y"]-self.py) <= rr:
                     en["hp"] -= 22 + self.stat_shockwave * 8
+            self.fx["shock"].append({"x": self.px, "y": self.py, "r": rr, "t": 16, "max": 16})
+            self.cooldowns["shockwave_stomp"] = self.get_cooldown_max("shockwave_stomp", self.stat_shockwave)
 
         # chain hook
-        if self.stat_hook > 0 and self.enemies and self.frame % max(40, 120 - self.stat_hook*15) == 0:
+        if self.stat_hook > 0 and self.enemies and self.cooldowns["chain_hook"] <= 0:
             t = self.nearest_enemy()
             if t:
+                self.fx["hook"].append({"x1": self.px, "y1": self.py, "x2": t["x"], "y2": t["y"], "t": 10})
                 t["x"] += (self.px - t["x"]) * 0.35
                 t["y"] += (self.py - t["y"]) * 0.35
                 t["hp"] -= 8 + self.stat_hook * 4
+                self.cooldowns["chain_hook"] = self.get_cooldown_max("chain_hook", self.stat_hook)
 
         # orbital laser sweep
-        if self.stat_orbital > 0 and self.frame % max(70, 170 - self.stat_orbital*16) == 0:
+        if self.stat_orbital > 0 and self.cooldowns["orbital_laser"] <= 0:
             yline = random.randint(30, HEIGHT-30)
             for en in self.enemies:
                 if abs(en["y"] - yline) < 16:
                     en["hp"] -= 40 + self.stat_orbital * 11
+            self.fx["laser"].append({"y": yline, "t": 14})
             self.float_texts.append({"x": WORLD_W//2, "y": yline, "t": 18, "txt": "LASER", "c": "#ff6666"})
+            self.cooldowns["orbital_laser"] = self.get_cooldown_max("orbital_laser", self.stat_orbital)
 
         # black holes
         alive_bh = []
@@ -632,6 +660,7 @@ class Game:
                 for z in targets:
                     if math.hypot(z["x"]-t["x"], z["y"]-t["y"]) < 240:
                         z["hp"] -= 20 + t["lv"] * 8
+                        self.fx["zap"].append({"x1": t["x"], "y1": t["y"], "x2": z["x"], "y2": z["y"], "t": 8})
                 t["cd"] = max(15, 55 - t["lv"]*4)
             if t["t"] > 0:
                 alive_totems.append(t)
@@ -794,6 +823,9 @@ class Game:
             if ex["t"] > 0:
                 alive_x.append(ex)
         self.explosions = alive_x
+
+        for key in self.fx:
+            self.fx[key] = [f for f in self.fx[key] if (f.update({"t": f["t"] - 1}) or f["t"] > 0)]
 
         # enemies
         alive_e = []
@@ -1016,6 +1048,15 @@ class Game:
             ("time_freeze", "Freeze", "#9fd6ff"),
             ("clone_swarm", "Clones", "#7fffd7"),
             ("auto_turret", "Turret", "#f8d29b"),
+            ("black_hole_core", "BlackHole", "#8f6bff"),
+            ("frost_mine", "Mine", "#9fd6ff"),
+            ("decoy_hologram", "Decoy", "#7bf0ff"),
+            ("thunder_totem", "Totem", "#ffd28c"),
+            ("flamethrower_arc", "Flame", "#ff944d"),
+            ("shockwave_stomp", "Shock", "#ffc87a"),
+            ("orbital_laser", "Laser", "#ff6666"),
+            ("chain_hook", "Hook", "#d6d6d6"),
+            ("shield_drone", "Shield", "#8fe6ff"),
         ]:
             if self.power_lv.get(pid, 0) > 0:
                 max_cd = self.get_cooldown_max(pid, self.power_lv.get(pid, 1))
@@ -1111,6 +1152,24 @@ class Game:
             rr = ex["r"] * (1 - p*0.15)
             c.create_oval(ex["x"]-rr, ex["y"]-rr, ex["x"]+rr, ex["y"]+rr, fill="#ff7a44", outline="#ffe2b8", width=3)
             c.create_oval(ex["x"]-rr*0.6, ex["y"]-rr*0.6, ex["x"]+rr*0.6, ex["y"]+rr*0.6, fill="#ffd27a", outline="")
+
+        for f in self.fx["throw"]:
+            c.create_line(f["x1"], f["y1"], f["x2"], f["y2"], fill=f.get("c", "#ffffff"), width=2, dash=(3,2))
+        for f in self.fx["laser"]:
+            c.create_line(0, f["y"], WORLD_W, f["y"], fill="#ff6666", width=5)
+        for f in self.fx["hook"]:
+            c.create_line(f["x1"], f["y1"], f["x2"], f["y2"], fill="#d6d6d6", width=3)
+        for f in self.fx["zap"]:
+            c.create_line(f["x1"], f["y1"], f["x2"], f["y2"], fill="#9fe8ff", width=2)
+        for f in self.fx["shock"]:
+            p = f["t"] / max(1, f["max"])
+            rr = f["r"] * (1 - p*0.5)
+            c.create_oval(f["x"]-rr, f["y"]-rr, f["x"]+rr, f["y"]+rr, outline="#ffc87a", width=2)
+        for f in self.fx["flame"]:
+            for i in range(4):
+                fx = f["x"] + f["fx"] * (30 + i*20)
+                fy = f["y"] + f["fy"] * (30 + i*20)
+                c.create_oval(fx-5, fy-5, fx+5, fy+5, fill="#ff944d", outline="")
 
         for en in self.enemies:
             self.draw_enemy(en)

@@ -32,6 +32,7 @@ Latest updates:
 - Edge threat indicators for offscreen enemies
 - Cast powers auto-fire when reloaded (including Meteor)
 - Added all suggested powers: Black Hole, Flamethrower, Frost Mine, Shield Drone, Vampiric, Shockwave, Orbital Laser, Decoy, Execution, Bounty, Cluster RPG, Phoenix, Chain Hook, Thunder Totem, Overclock
+- Added throw/ability animations for new powers + reload bars/timers for active and proc-based powers
 
 ## Run
 ```bash
