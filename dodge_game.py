@@ -1219,8 +1219,11 @@ class Game:
         c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#101010", outline="")
 
         cam_zoom = 1.0
+        # zoom-out now works in both modes (Hardcore zooms more aggressively)
         if self.mode == "Hardcore":
             cam_zoom = max(0.55, 1.0 - max(0, self.wave - 1) * 0.012)
+        elif self.mode == "Classic":
+            cam_zoom = max(0.72, 1.0 - max(0, self.wave - 1) * 0.007)
 
         cx, cy = self.px, self.py
         def tx(x): return cx + (x - cx) * cam_zoom
