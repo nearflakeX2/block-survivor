@@ -248,6 +248,18 @@ class Game:
         self.panel_scroll = 0.0
         self.panel_scroll_dir = 1
         self.panel_hovering = False
+
+        # decorative world trees (non-patterned)
+        self.world_trees = []
+        tree_count = max(220, int((self.map_w * self.map_h) / 25000))
+        for _ in range(tree_count):
+            self.world_trees.append({
+                "x": random.uniform(20, self.map_w - 20),
+                "y": random.uniform(20, self.map_h - 20),
+                "s": random.uniform(0.8, 1.35),
+                "hue": random.choice(["#2e7d32", "#2b6f3a", "#3a8d45"]),
+            })
+
         self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
 
     # ---------- input ----------
@@ -1297,8 +1309,8 @@ class Game:
             c.create_text(WORLD_W//2, HEIGHT-80, text="Classic = normal | Hardcore = faster spawns + lower HP", fill="#aeb8e6", font=("Consolas", 10))
             return
 
-        # world bg/grid (green field)
-        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#1f4d24", outline="")
+        # world bg (solid green)
+        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#2f8f3a", outline="")
 
         cam_zoom = 1.0
         # zoom-out now works in both modes (Hardcore zooms more aggressively)
@@ -1312,26 +1324,22 @@ class Game:
         def ty(y): return (HEIGHT / 2) + (y - cy) * cam_zoom
         def ts(v): return max(1.0, v * cam_zoom)
         self._tx, self._ty, self._ts = tx, ty, ts
-        gx0 = int((self.cam_x - WORLD_W/2) // 40) * 40
-        gy0 = int((self.cam_y - HEIGHT/2) // 40) * 40
-        for xw in range(gx0, gx0 + int(WORLD_W) + 80, 40):
-            x = tx(xw)
-            c.create_line(x, 0, x, HEIGHT, fill="#181818")
-        for yw in range(gy0, gy0 + int(HEIGHT) + 80, 40):
-            y = ty(yw)
-            c.create_line(0, y, WORLD_W, y, fill="#2b5f31")
-
-        # small decorative trees
-        tx0 = int((self.cam_x - WORLD_W/2) // 120) * 120
-        ty0 = int((self.cam_y - HEIGHT/2) // 120) * 120
-        for wx in range(tx0, tx0 + int(WORLD_W) + 240, 120):
-            for wy in range(ty0, ty0 + int(HEIGHT) + 240, 120):
-                if ((wx // 120 + wy // 120) % 5) != 0:
-                    continue
-                sx, sy = tx(wx), ty(wy)
-                trunk_h = ts(8)
-                c.create_rectangle(sx-ts(2), sy, sx+ts(2), sy+trunk_h, fill="#5b3a1e", outline="")
-                c.create_oval(sx-ts(9), sy-ts(12), sx+ts(9), sy+ts(6), fill="#2f7a39", outline="#255f2d")
+        # detailed decorative trees (non-patterned positions)
+        view_l = self.cam_x - WORLD_W / 2 - 80
+        view_r = self.cam_x + WORLD_W / 2 + 80
+        view_t = self.cam_y - HEIGHT / 2 - 80
+        view_b = self.cam_y + HEIGHT / 2 + 80
+        for tr in self.world_trees:
+            if not (view_l <= tr["x"] <= view_r and view_t <= tr["y"] <= view_b):
+                continue
+            sx, sy = tx(tr["x"]), ty(tr["y"])
+            sc = ts(tr["s"])
+            trunk_h = 9 * sc
+            trunk_w = 2.2 * sc
+            c.create_rectangle(sx - trunk_w, sy, sx + trunk_w, sy + trunk_h, fill="#5a3a1b", outline="")
+            c.create_oval(sx - 11*sc, sy - 13*sc, sx + 11*sc, sy + 3*sc, fill=tr["hue"], outline="#255f2d")
+            c.create_oval(sx - 8*sc, sy - 18*sc, sx + 8*sc, sy - 2*sc, fill="#3f9d4d", outline="")
+            c.create_oval(sx - 5*sc, sy - 22*sc, sx + 5*sc, sy - 8*sc, fill="#56b563", outline="")
 
         # world entities
         for d in self.drops:
