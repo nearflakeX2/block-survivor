@@ -241,6 +241,12 @@ class Game:
     def on_key_down(self, e):
         k = e.keysym.lower()
         self.keys.add(k)
+
+        if k == "f11":
+            self.root.attributes("-fullscreen", not bool(self.root.attributes("-fullscreen")))
+        if k == "escape":
+            self.root.attributes("-fullscreen", False)
+
         if self.in_start_menu:
             return
         if k == "r" and self.game_over:
@@ -579,6 +585,13 @@ class Game:
             return
 
         self.frame += 1
+
+        # auto-scroll power panel continuously
+        panel_len = len(self.panel_powers())
+        visible = max(1, (HEIGHT - 110 - 50) // 34)
+        max_scroll = max(0, panel_len - visible)
+        if max_scroll > 0 and self.frame % 18 == 0:
+            self.panel_scroll = (self.panel_scroll + 1) % (max_scroll + 1)
 
         # movement
         if self.dash_t > 0:
@@ -1435,8 +1448,15 @@ class Game:
 
 
 def main():
+    global WIDTH, HEIGHT, WORLD_W
+
     root = tk.Tk()
-    root.resizable(False, False)
+    WIDTH = root.winfo_screenwidth()
+    HEIGHT = root.winfo_screenheight()
+    WORLD_W = int(WIDTH * 0.76)
+
+    root.attributes("-fullscreen", True)
+    root.resizable(True, True)
     Game(root)
     root.mainloop()
 
