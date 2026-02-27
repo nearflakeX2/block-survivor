@@ -591,8 +591,10 @@ class Game:
         t3 = targets[2] if len(targets) > 2 else t2
         t4 = targets[3] if len(targets) > 3 else t1
 
-        # default/multi-shot aims at 4th nearest
-        base4 = math.atan2(t4["y"] - self.py, t4["x"] - self.px)
+        # if only base gun is active, aim nearest; otherwise use 4th-nearest for default stream
+        only_base_gun = (not self.stat_multishot and not self.stat_split and self.stat_machinegun <= 0 and self.power_lv.get("rpg_launcher", 0) <= 0)
+        primary_target = t1 if only_base_gun else t4
+        base4 = math.atan2(primary_target["y"] - self.py, primary_target["x"] - self.px)
         spread = [0]
         if self.stat_multishot > 0:
             spread = [-0.06, 0, 0.06]
@@ -678,29 +680,11 @@ class Game:
             self.px += dx
             self.py += dy
 
-        h = PLAYER_SIZE / 2
-        self.px = max(h, min(self.map_w - h, self.px))
-        self.py = max(h, min(self.map_h - h, self.py))
+        # no fixed arena clamp: roam freely
 
-        # camera edge-slide: when player nears viewport edge, camera pans
-        margin_x = WORLD_W * 0.22
-        margin_y = HEIGHT * 0.22
-        left = self.cam_x - WORLD_W/2 + margin_x
-        right = self.cam_x + WORLD_W/2 - margin_x
-        top = self.cam_y - HEIGHT/2 + margin_y
-        bottom = self.cam_y + HEIGHT/2 - margin_y
-
-        if self.px < left:
-            self.cam_x -= (left - self.px)
-        elif self.px > right:
-            self.cam_x += (self.px - right)
-        if self.py < top:
-            self.cam_y -= (top - self.py)
-        elif self.py > bottom:
-            self.cam_y += (self.py - bottom)
-
-        self.cam_x = max(WORLD_W/2, min(self.map_w - WORLD_W/2, self.cam_x))
-        self.cam_y = max(HEIGHT/2, min(self.map_h - HEIGHT/2, self.cam_y))
+        # camera always centers on player
+        self.cam_x = float(self.px)
+        self.cam_y = float(self.py)
 
         # toggles always active when bought
         if "dark_aura" in self.active_toggles:
