@@ -124,7 +124,12 @@ class Game:
         self.power_choices = []
         self.next_choice_coin = 120
 
-        self.px, self.py = WORLD_W // 2, HEIGHT // 2
+        # large world map (camera can pan)
+        self.map_w = int(WORLD_W * 3.2)
+        self.map_h = int(HEIGHT * 3.0)
+
+        self.px, self.py = self.map_w // 2, self.map_h // 2
+        self.cam_x, self.cam_y = float(self.px), float(self.py)
         self.face_x, self.face_y = 1.0, 0.0
 
         mode_hp_mul = 0.8 if self.mode == "Hardcore" else 1.0
@@ -463,8 +468,10 @@ class Game:
                 t["hp"] -= dmg
         elif pid == "meteor_drop":
             for _ in range(2 + lv):
-                rx = random.randint(40, WORLD_W - 40)
-                ry = random.randint(40, HEIGHT - 40)
+                rx = int(self.cam_x + random.randint(-int(WORLD_W*0.45), int(WORLD_W*0.45)))
+                ry = int(self.cam_y + random.randint(-int(HEIGHT*0.45), int(HEIGHT*0.45)))
+                rx = max(40, min(self.map_w - 40, rx))
+                ry = max(40, min(self.map_h - 40, ry))
                 self.meteors.append({"x": rx, "y": ry, "t": 40, "max_t": 40, "dmg": 60 + lv * 16, "r": 70 + lv*8})
         elif pid == "clone_swarm":
             for _ in range(1 + lv // 2):
@@ -491,14 +498,22 @@ class Game:
     def spawn_enemy(self):
         if self.running and not self.in_start_menu and not self.paused and not self.power_choice_open:
             side = random.randint(0, 3)
+            view_l = self.cam_x - WORLD_W / 2
+            view_r = self.cam_x + WORLD_W / 2
+            view_t = self.cam_y - HEIGHT / 2
+            view_b = self.cam_y + HEIGHT / 2
+
             if side == 0:
-                x, y = random.randint(20, WORLD_W - 20), -20
+                x, y = random.randint(int(view_l + 20), int(view_r - 20)), int(view_t - 20)
             elif side == 1:
-                x, y = random.randint(20, WORLD_W - 20), HEIGHT + 20
+                x, y = random.randint(int(view_l + 20), int(view_r - 20)), int(view_b + 20)
             elif side == 2:
-                x, y = -20, random.randint(20, HEIGHT - 20)
+                x, y = int(view_l - 20), random.randint(int(view_t + 20), int(view_b - 20))
             else:
-                x, y = WORLD_W + 20, random.randint(20, HEIGHT - 20)
+                x, y = int(view_r + 20), random.randint(int(view_t + 20), int(view_b - 20))
+
+            x = max(10, min(self.map_w - 10, x))
+            y = max(10, min(self.map_h - 10, y))
 
             hp = ENEMY_BASE_HP + self.wave * 5
             sp = ENEMY_BASE_SPEED + min(2.8, self.wave * 0.1) + random.random() * 0.5
@@ -664,8 +679,28 @@ class Game:
             self.py += dy
 
         h = PLAYER_SIZE / 2
-        self.px = max(h, min(WORLD_W - h, self.px))
-        self.py = max(h, min(HEIGHT - h, self.py))
+        self.px = max(h, min(self.map_w - h, self.px))
+        self.py = max(h, min(self.map_h - h, self.py))
+
+        # camera edge-slide: when player nears viewport edge, camera pans
+        margin_x = WORLD_W * 0.22
+        margin_y = HEIGHT * 0.22
+        left = self.cam_x - WORLD_W/2 + margin_x
+        right = self.cam_x + WORLD_W/2 - margin_x
+        top = self.cam_y - HEIGHT/2 + margin_y
+        bottom = self.cam_y + HEIGHT/2 - margin_y
+
+        if self.px < left:
+            self.cam_x -= (left - self.px)
+        elif self.px > right:
+            self.cam_x += (self.px - right)
+        if self.py < top:
+            self.cam_y -= (top - self.py)
+        elif self.py > bottom:
+            self.cam_y += (self.py - bottom)
+
+        self.cam_x = max(WORLD_W/2, min(self.map_w - WORLD_W/2, self.cam_x))
+        self.cam_y = max(HEIGHT/2, min(self.map_h - HEIGHT/2, self.cam_y))
 
         # toggles always active when bought
         if "dark_aura" in self.active_toggles:
@@ -832,7 +867,7 @@ class Game:
         for b in self.bullets:
             b["x"] += b["vx"]
             b["y"] += b["vy"]
-            if b["x"] < -10 or b["x"] > WORLD_W + 10 or b["y"] < -10 or b["y"] > HEIGHT + 10:
+            if b["x"] < -10 or b["x"] > self.map_w + 10 or b["y"] < -10 or b["y"] > self.map_h + 10:
                 continue
             hit = False
             for en in self.enemies:
@@ -927,7 +962,7 @@ class Game:
 
             r["x"] += r["vx"]
             r["y"] += r["vy"]
-            if r["x"] < -20 or r["x"] > WORLD_W+20 or r["y"] < -20 or r["y"] > HEIGHT+20:
+            if r["x"] < -20 or r["x"] > self.map_w+20 or r["y"] < -20 or r["y"] > self.map_h+20:
                 continue
             hit = False
             for en in self.enemies:
@@ -1288,14 +1323,18 @@ class Game:
         elif self.mode == "Classic":
             cam_zoom = max(0.72, 1.0 - max(0, self.wave - 1) * 0.007)
 
-        cx, cy = self.px, self.py
-        def tx(x): return cx + (x - cx) * cam_zoom
-        def ty(y): return cy + (y - cy) * cam_zoom
+        cx, cy = self.cam_x, self.cam_y
+        def tx(x): return (WORLD_W / 2) + (x - cx) * cam_zoom
+        def ty(y): return (HEIGHT / 2) + (y - cy) * cam_zoom
         def ts(v): return max(1.0, v * cam_zoom)
         self._tx, self._ty, self._ts = tx, ty, ts
-        for x in range(0, WORLD_W, 40):
+        gx0 = int((self.cam_x - WORLD_W/2) // 40) * 40
+        gy0 = int((self.cam_y - HEIGHT/2) // 40) * 40
+        for xw in range(gx0, gx0 + int(WORLD_W) + 80, 40):
+            x = tx(xw)
             c.create_line(x, 0, x, HEIGHT, fill="#181818")
-        for y in range(0, HEIGHT, 40):
+        for yw in range(gy0, gy0 + int(HEIGHT) + 80, 40):
+            y = ty(yw)
             c.create_line(0, y, WORLD_W, y, fill="#181818")
 
         # world entities
