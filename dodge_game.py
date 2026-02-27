@@ -234,7 +234,8 @@ class Game:
         self.stat_nuke = 0
 
         self.orbit_angle = 0
-        self.panel_scroll = 0
+        self.panel_scroll = 0.0
+        self.panel_scroll_dir = 1
         self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
 
     # ---------- input ----------
@@ -286,7 +287,7 @@ class Game:
         delta = -1 if e.delta > 0 else 1
         visible = max(1, (HEIGHT - 110 - 50) // 34)
         max_scroll = max(0, len(self.panel_powers()) - visible)
-        self.panel_scroll = max(0, min(max_scroll, self.panel_scroll + delta))
+        self.panel_scroll = max(0.0, min(float(max_scroll), self.panel_scroll + delta))
 
     def on_click(self, e):
         if self.in_start_menu:
@@ -331,18 +332,18 @@ class Game:
 
         # always-visible scroll buttons
         if y0 - 34 <= e.y <= y0 - 6:
-            self.panel_scroll = max(0, self.panel_scroll - 1)
+            self.panel_scroll = max(0.0, self.panel_scroll - 1)
             return
         if HEIGHT - 34 <= e.y <= HEIGHT - 6:
             visible = max(1, (HEIGHT - 110 - 50) // 34)
             max_scroll = max(0, len(panel_list) - visible)
-            self.panel_scroll = min(max_scroll, self.panel_scroll + 1)
+            self.panel_scroll = min(float(max_scroll), self.panel_scroll + 1)
             return
 
         idx_in_view = (e.y - y0) // row_h
         if idx_in_view < 0:
             return
-        idx = self.panel_scroll + idx_in_view
+        idx = int(self.panel_scroll) + idx_in_view
         if idx >= len(panel_list):
             return
 
@@ -468,7 +469,7 @@ class Game:
             pass
     # ---------- gameplay ----------
     def spawn_enemy(self):
-        if self.running and not self.in_start_menu:
+        if self.running and not self.in_start_menu and not self.paused and not self.power_choice_open:
             side = random.randint(0, 3)
             if side == 0:
                 x, y = random.randint(20, WORLD_W - 20), -20
@@ -586,12 +587,20 @@ class Game:
 
         self.frame += 1
 
-        # auto-scroll power panel continuously
+        # auto-scroll power panel smoothly
         panel_len = len(self.panel_powers())
         visible = max(1, (HEIGHT - 110 - 50) // 34)
         max_scroll = max(0, panel_len - visible)
-        if max_scroll > 0 and self.frame % 18 == 0:
-            self.panel_scroll = (self.panel_scroll + 1) % (max_scroll + 1)
+        if max_scroll > 0:
+            self.panel_scroll += 0.08 * self.panel_scroll_dir
+            if self.panel_scroll >= max_scroll:
+                self.panel_scroll = float(max_scroll)
+                self.panel_scroll_dir = -1
+            elif self.panel_scroll <= 0:
+                self.panel_scroll = 0.0
+                self.panel_scroll_dir = 1
+        else:
+            self.panel_scroll = 0.0
 
         # movement
         if self.dash_t > 0:
@@ -1036,7 +1045,7 @@ class Game:
         self.drops = keep
 
         # auto-cast owned cast powers when ready (no click needed)
-        for pid in ["meteor_drop", "blood_nova", "chain_lightning", "time_freeze", "clone_swarm", "auto_turret", "black_hole_core", "frost_mine", "decoy_hologram", "thunder_totem"]:
+        for pid in ["meteor_drop", "blood_nova", "chain_lightning", "time_freeze", "clone_swarm", "black_hole_core", "frost_mine", "decoy_hologram", "thunder_totem"]:
             lv = self.power_lv.get(pid, 0)
             if lv > 0 and self.cooldowns.get(pid, 0) <= 0:
                 self.cast_power(pid, lv)
@@ -1110,7 +1119,7 @@ class Game:
                       text="Mouse wheel to scroll\nClick to buy/use power")
 
         for i in range(visible):
-            idx = self.panel_scroll + i
+            idx = int(self.panel_scroll) + i
             if idx >= len(panel_list):
                 break
             p = panel_list[idx]
