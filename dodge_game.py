@@ -187,6 +187,7 @@ class Game:
             "chain_hook": 0,
             "shield_drone": 0,
             "nuke_mine": 0,
+            "split_shot": 0,
         }
 
         # base cooldown lengths (reduced by higher levels for cast powers)
@@ -207,6 +208,7 @@ class Game:
             "chain_hook": 120,
             "shield_drone": 22,
             "nuke_mine": 1800,
+            "split_shot": 40,
         }
 
         # power ownership and runtime
@@ -579,14 +581,15 @@ class Game:
             sp = BASE_BULLET_SPEED + self.stat_damage * 0.04
             self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": self.power_lv.get("ricochet_shot",0)})
 
-        # Shotgun Blast is separate from machine gun
-        if self.stat_split:
+        # Shotgun Blast is separate from machine gun (slower cadence)
+        if self.stat_split and self.cooldowns["split_shot"] <= 0:
             pellets = 6 + self.power_lv.get("split_shot", 0)
             for _ in range(pellets):
                 j = random.uniform(-0.28, 0.28)
                 a = base + j
                 sp = BASE_BULLET_SPEED - 0.8 + random.uniform(-0.2, 0.2)
                 self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
+            self.cooldowns["split_shot"] = self.get_cooldown_max("split_shot", max(1, self.power_lv.get("split_shot", 1)))
 
         # machine gun extra stream bullets (tight, not shotgun spread)
         if self.stat_machinegun > 0:
@@ -614,18 +617,16 @@ class Game:
 
         self.frame += 1
 
-        # auto-scroll power panel smoothly
+        # auto-scroll power panel smoothly (single-direction loop)
         panel_len = len(self.panel_powers())
         visible = max(1, (HEIGHT - 110 - 50) // 34)
         max_scroll = max(0, panel_len - visible)
-        if max_scroll > 0 and not self.panel_hovering:
-            self.panel_scroll += 0.08 * self.panel_scroll_dir
-            if self.panel_scroll >= max_scroll:
-                self.panel_scroll = float(max_scroll)
-                self.panel_scroll_dir = -1
-            elif self.panel_scroll <= 0:
-                self.panel_scroll = 0.0
-                self.panel_scroll_dir = 1
+        if max_scroll > 0:
+            self.panel_scroll = max(0.0, min(float(max_scroll), self.panel_scroll))
+            if not self.panel_hovering:
+                self.panel_scroll += 0.035
+                if self.panel_scroll > max_scroll:
+                    self.panel_scroll = 0.0
         else:
             self.panel_scroll = 0.0
 
@@ -1225,6 +1226,7 @@ class Game:
             ("orbital_laser", "Laser", "#ff6666"),
             ("chain_hook", "Hook", "#d6d6d6"),
             ("shield_drone", "Shield", "#8fe6ff"),
+            ("split_shot", "Shotgun", "#ffd27a"),
             ("nuke_mine", "Nuke", "#ff5252"),
         ]:
             if self.power_lv.get(pid, 0) > 0:
