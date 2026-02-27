@@ -29,6 +29,7 @@ class Game:
         root.bind("<KeyPress>", self.on_key_down)
         root.bind("<KeyRelease>", self.on_key_up)
         self.canvas.bind("<Button-1>", self.on_click)
+        self.canvas.bind("<Motion>", self.on_mouse_move)
         self.canvas.bind_all("<MouseWheel>", self.on_wheel)
 
         self.pause_btn = (WORLD_W - 110, 10, WORLD_W - 20, 40)
@@ -66,7 +67,8 @@ class Game:
             {"id":"maxhp_core","name":"MaxHP Core","cost":130,"kind":"passive","rarity":"common"},
             {"id":"magnet_core","name":"Magnet Core","cost":125,"kind":"passive","rarity":"common"},
             {"id":"ricochet_shot","name":"Ricochet Shot","cost":160,"kind":"passive","rarity":"rare"},
-            {"id":"split_shot","name":"Split Shot","cost":170,"kind":"passive","rarity":"epic"},
+            {"id":"split_shot","name":"Shotgun Blast","cost":170,"kind":"passive","rarity":"epic"},
+            {"id":"multi_shot","name":"Multi Shot","cost":160,"kind":"passive","rarity":"rare"},
             {"id":"clone_swarm","name":"Clone Swarm","cost":180,"kind":"cast","rarity":"epic"},
             {"id":"rpg_launcher","name":"RPG Launcher","cost":165,"kind":"passive","rarity":"legendary"},
             {"id":"machine_gun","name":"Machine Gun","cost":170,"kind":"passive","rarity":"legendary"},
@@ -106,7 +108,8 @@ class Game:
             "maxhp_core":"Permanent max HP up.",
             "magnet_core":"Pulls drops toward you.",
             "ricochet_shot":"Bullets pierce more with levels.",
-            "split_shot":"More spread strength.",
+            "split_shot":"Shotgun pellets blast in a wide cone.",
+            "multi_shot":"Fires tighter parallel shots.",
             "clone_swarm":"Spawns attacking clones.",
             "rpg_launcher":"Also fires rockets while shooting bullets.",
             "machine_gun":"Huge fire-rate boost and extra bullet stream.",
@@ -219,6 +222,7 @@ class Game:
         self.stat_magnet = 0
         self.stat_ricochet = False
         self.stat_split = False
+        self.stat_multishot = 0
         self.stat_dash_plus = False
         self.stat_machinegun = 0
         self.stat_vamp = 0
@@ -236,6 +240,7 @@ class Game:
         self.orbit_angle = 0
         self.panel_scroll = 0.0
         self.panel_scroll_dir = 1
+        self.panel_hovering = False
         self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
 
     # ---------- input ----------
@@ -288,6 +293,18 @@ class Game:
         visible = max(1, (HEIGHT - 110 - 50) // 34)
         max_scroll = max(0, len(self.panel_powers()) - visible)
         self.panel_scroll = max(0.0, min(float(max_scroll), self.panel_scroll + delta))
+
+    def on_mouse_move(self, e):
+        panel_x = WORLD_W + 10
+        panel_w = WIDTH - WORLD_W - 20
+        row_h = 34
+        y0 = 110
+        panel_list = self.panel_powers()
+        visible = max(1, (HEIGHT - y0 - 50) // row_h)
+        idx_in_view = (e.y - y0) // row_h
+        in_rows = (panel_x <= e.x <= panel_x + panel_w and idx_in_view >= 0 and idx_in_view < visible)
+        idx = int(self.panel_scroll) + idx_in_view if idx_in_view >= 0 else -1
+        self.panel_hovering = bool(in_rows and 0 <= idx < len(panel_list))
 
     def on_click(self, e):
         if self.in_start_menu:
@@ -406,6 +423,7 @@ class Game:
         elif pid == "magnet_core": self.stat_magnet += 35
         elif pid == "ricochet_shot": self.stat_ricochet = True
         elif pid == "split_shot": self.stat_split = True
+        elif pid == "multi_shot": self.stat_multishot += 1
         elif pid == "blade_dash_plus": self.stat_dash_plus = True
         elif pid == "rpg_launcher":
             pass
@@ -553,18 +571,27 @@ class Game:
 
         base = math.atan2(t["y"] - self.py, t["x"] - self.px)
         spread = [0]
-        if self.stat_split:
-            spread = [-0.16, 0, 0.16]
+        if self.stat_multishot > 0:
+            spread = [-0.06, 0, 0.06]
 
         for s in spread:
             a = base + s
             sp = BASE_BULLET_SPEED + self.stat_damage * 0.04
             self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": self.power_lv.get("ricochet_shot",0)})
 
-        # machine gun extra stream bullets with slight random spread
+        # Shotgun Blast is separate from machine gun
+        if self.stat_split:
+            pellets = 6 + self.power_lv.get("split_shot", 0)
+            for _ in range(pellets):
+                j = random.uniform(-0.28, 0.28)
+                a = base + j
+                sp = BASE_BULLET_SPEED - 0.8 + random.uniform(-0.2, 0.2)
+                self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
+
+        # machine gun extra stream bullets (tight, not shotgun spread)
         if self.stat_machinegun > 0:
             for _ in range(self.stat_machinegun):
-                j = random.uniform(-0.12, 0.12)
+                j = random.uniform(-0.025, 0.025)
                 a = base + j
                 sp = BASE_BULLET_SPEED + 1.6 + self.stat_machinegun * 0.3
                 self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
@@ -591,7 +618,7 @@ class Game:
         panel_len = len(self.panel_powers())
         visible = max(1, (HEIGHT - 110 - 50) // 34)
         max_scroll = max(0, panel_len - visible)
-        if max_scroll > 0:
+        if max_scroll > 0 and not self.panel_hovering:
             self.panel_scroll += 0.08 * self.panel_scroll_dir
             if self.panel_scroll >= max_scroll:
                 self.panel_scroll = float(max_scroll)
