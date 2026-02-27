@@ -256,9 +256,16 @@ class Game:
             self.world_trees.append({
                 "x": random.uniform(20, self.map_w - 20),
                 "y": random.uniform(20, self.map_h - 20),
-                "s": random.uniform(0.8, 1.35),
+                "s": random.uniform(1.05, 1.7),
                 "hue": random.choice(["#2e7d32", "#2b6f3a", "#3a8d45"]),
             })
+
+        # small rivers with current flow
+        self.rivers = [
+            {"x": self.map_w * 0.2, "y": self.map_h * 0.15, "w": self.map_w * 0.08, "h": self.map_h * 0.7, "fx": 0.0, "fy": 1.2},
+            {"x": self.map_w * 0.55, "y": self.map_h * 0.55, "w": self.map_w * 0.35, "h": self.map_h * 0.07, "fx": 1.0, "fy": 0.0},
+            {"x": self.map_w * 0.78, "y": self.map_h * 0.2, "w": self.map_w * 0.07, "h": self.map_h * 0.55, "fx": 0.0, "fy": -1.1},
+        ]
 
         self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
 
@@ -529,7 +536,7 @@ class Game:
 
             hp = ENEMY_BASE_HP + self.wave * 5
             sp = ENEMY_BASE_SPEED + min(2.8, self.wave * 0.1) + random.random() * 0.5
-            size = 22 + random.randint(-4, 5)
+            size = 30 + random.randint(-5, 7)
             tier = min(3, self.wave // 4)
             shapes = ["square", "diamond", "triangle", "hex"]
             colors = ["#d94f4f", "#b04fda", "#f08a24", "#7a2be2"]
@@ -572,6 +579,12 @@ class Game:
         if not self.enemies:
             return None
         return min(self.enemies, key=lambda e: (e["x"] - self.px) ** 2 + (e["y"] - self.py) ** 2)
+
+    def river_current_at(self, x, y):
+        for r in self.rivers:
+            if r["x"] <= x <= r["x"] + r["w"] and r["y"] <= y <= r["y"] + r["h"]:
+                return r["fx"], r["fy"]
+        return 0.0, 0.0
 
     def start_dash(self):
         if self.dash_cd > 0 or self.dash_t > 0:
@@ -691,6 +704,12 @@ class Game:
                 self.face_x, self.face_y = dx / d, dy / d
             self.px += dx
             self.py += dy
+
+        # river flow effect on player
+        rvx, rvy = self.river_current_at(self.px, self.py)
+        if rvx or rvy:
+            self.px += rvx
+            self.py += rvy
 
         # no fixed arena clamp: roam freely
 
@@ -1071,6 +1090,10 @@ class Game:
 
             if d <= en["s"] / 2 + PLAYER_SIZE / 2:
                 self.hp -= 0.45
+                # physical bump so player can't pass through zombies
+                overlap = (en["s"] / 2 + PLAYER_SIZE / 2) - d + 0.01
+                self.px -= (dx / d) * overlap
+                self.py -= (dy / d) * overlap
 
             for t in self.turrets:
                 if math.hypot(en["x"]-t["x"], en["y"]-t["y"]) <= en["s"]/2 + 10:
@@ -1133,6 +1156,10 @@ class Game:
 
         self.hp = min(self.max_hp, self.hp + self.stat_regen / 60)
         self.wave = 1 + self.kills // 15
+
+        # keep camera centered after all movement/collisions
+        self.cam_x = float(self.px)
+        self.cam_y = float(self.py)
 
         # power choice popup is Hardcore-only
         if self.mode == "Hardcore" and self.coins >= self.next_choice_coin and not self.power_choice_open:
@@ -1324,6 +1351,21 @@ class Game:
         def ty(y): return (HEIGHT / 2) + (y - cy) * cam_zoom
         def ts(v): return max(1.0, v * cam_zoom)
         self._tx, self._ty, self._ts = tx, ty, ts
+        # rivers
+        for r in self.rivers:
+            x1, y1 = tx(r["x"]), ty(r["y"])
+            x2, y2 = tx(r["x"] + r["w"]), ty(r["y"] + r["h"])
+            c.create_rectangle(x1, y1, x2, y2, fill="#2f8fcf", outline="#74c4ff", width=2)
+            # simple flow streaks
+            for i in range(6):
+                t = (self.frame * 2 + i * 35) % 140
+                if abs(r["fx"]) > abs(r["fy"]):
+                    yy = y1 + (i + 1) * (y2 - y1) / 7
+                    c.create_line(x1 + t, yy, x1 + t + 18, yy, fill="#bde9ff", width=2)
+                else:
+                    xx = x1 + (i + 1) * (x2 - x1) / 7
+                    c.create_line(xx, y1 + t, xx, y1 + t + 18, fill="#bde9ff", width=2)
+
         # detailed decorative trees (non-patterned positions)
         view_l = self.cam_x - WORLD_W / 2 - 80
         view_r = self.cam_x + WORLD_W / 2 + 80
