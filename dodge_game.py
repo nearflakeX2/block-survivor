@@ -1297,8 +1297,8 @@ class Game:
             c.create_text(WORLD_W//2, HEIGHT-80, text="Classic = normal | Hardcore = faster spawns + lower HP", fill="#aeb8e6", font=("Consolas", 10))
             return
 
-        # world bg/grid
-        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#101010", outline="")
+        # world bg/grid (green field)
+        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#1f4d24", outline="")
 
         cam_zoom = 1.0
         # zoom-out now works in both modes (Hardcore zooms more aggressively)
@@ -1319,7 +1319,19 @@ class Game:
             c.create_line(x, 0, x, HEIGHT, fill="#181818")
         for yw in range(gy0, gy0 + int(HEIGHT) + 80, 40):
             y = ty(yw)
-            c.create_line(0, y, WORLD_W, y, fill="#181818")
+            c.create_line(0, y, WORLD_W, y, fill="#2b5f31")
+
+        # small decorative trees
+        tx0 = int((self.cam_x - WORLD_W/2) // 120) * 120
+        ty0 = int((self.cam_y - HEIGHT/2) // 120) * 120
+        for wx in range(tx0, tx0 + int(WORLD_W) + 240, 120):
+            for wy in range(ty0, ty0 + int(HEIGHT) + 240, 120):
+                if ((wx // 120 + wy // 120) % 5) != 0:
+                    continue
+                sx, sy = tx(wx), ty(wy)
+                trunk_h = ts(8)
+                c.create_rectangle(sx-ts(2), sy, sx+ts(2), sy+trunk_h, fill="#5b3a1e", outline="")
+                c.create_oval(sx-ts(9), sy-ts(12), sx+ts(9), sy+ts(6), fill="#2f7a39", outline="#255f2d")
 
         # world entities
         for d in self.drops:
@@ -1334,10 +1346,11 @@ class Game:
 
         for s in self.smoke:
             p = s["t"] / s["max"]
-            rr = s["r"] * (1.2 - p * 0.3)
+            rr = ts(s["r"] * (1.2 - p * 0.3))
             shade = int(70 + 90 * p)
             color = f"#{shade:02x}{shade:02x}{shade:02x}"
-            c.create_oval(s["x"]-rr, s["y"]-rr, s["x"]+rr, s["y"]+rr, fill=color, outline="")
+            sx, sy = tx(s["x"]), ty(s["y"])
+            c.create_oval(sx-rr, sy-rr, sx+rr, sy+rr, fill=color, outline="")
 
         for rb in self.rockets:
             x, y = tx(rb["x"]), ty(rb["y"])
@@ -1385,9 +1398,10 @@ class Game:
 
         for ex in self.explosions:
             p = ex["t"] / ex["max"]
-            rr = ex["r"] * (1 - p*0.15)
-            c.create_oval(ex["x"]-rr, ex["y"]-rr, ex["x"]+rr, ex["y"]+rr, fill="#ff7a44", outline="#ffe2b8", width=3)
-            c.create_oval(ex["x"]-rr*0.6, ex["y"]-rr*0.6, ex["x"]+rr*0.6, ex["y"]+rr*0.6, fill="#ffd27a", outline="")
+            rr = ts(ex["r"] * (1 - p*0.15))
+            exx, exy = tx(ex["x"]), ty(ex["y"])
+            c.create_oval(exx-rr, exy-rr, exx+rr, exy+rr, fill="#ff7a44", outline="#ffe2b8", width=3)
+            c.create_oval(exx-rr*0.6, exy-rr*0.6, exx+rr*0.6, exy+rr*0.6, fill="#ffd27a", outline="")
 
         for f in self.fx["throw"]:
             c.create_line(f["x1"], f["y1"], f["x2"], f["y2"], fill=f.get("c", "#ffffff"), width=2, dash=(3,2))
