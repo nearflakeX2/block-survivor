@@ -567,43 +567,54 @@ class Game:
     def fire(self):
         if self.shoot_cd > 0:
             return
-        t = self.nearest_enemy()
-        if not t:
+        if not self.enemies:
             return
 
-        base = math.atan2(t["y"] - self.py, t["x"] - self.px)
+        targets = sorted(self.enemies, key=lambda e: (e["x"] - self.px) ** 2 + (e["y"] - self.py) ** 2)
+        t1 = targets[0]
+        t2 = targets[1] if len(targets) > 1 else t1
+        t3 = targets[2] if len(targets) > 2 else t2
+        t4 = targets[3] if len(targets) > 3 else t1
+
+        # default/multi-shot aims at 4th nearest
+        base4 = math.atan2(t4["y"] - self.py, t4["x"] - self.px)
         spread = [0]
         if self.stat_multishot > 0:
             spread = [-0.06, 0, 0.06]
 
         for s in spread:
-            a = base + s
+            a = base4 + s
             sp = BASE_BULLET_SPEED + self.stat_damage * 0.04
             self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 4, "pierce": self.power_lv.get("ricochet_shot",0)})
 
-        # Shotgun Blast is separate from machine gun (slower cadence)
+        # shotgun aims at nearest enemy
         if self.stat_split and self.cooldowns["split_shot"] <= 0:
+            base1 = math.atan2(t1["y"] - self.py, t1["x"] - self.px)
             pellets = 6 + self.power_lv.get("split_shot", 0)
             for _ in range(pellets):
                 j = random.uniform(-0.28, 0.28)
-                a = base + j
+                a = base1 + j
                 sp = BASE_BULLET_SPEED - 0.8 + random.uniform(-0.2, 0.2)
                 self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
             self.cooldowns["split_shot"] = self.get_cooldown_max("split_shot", max(1, self.power_lv.get("split_shot", 1)))
 
-        # machine gun extra stream bullets (tight, not shotgun spread)
+        # machine gun aims at 2nd and 3rd nearest
         if self.stat_machinegun > 0:
-            for _ in range(self.stat_machinegun):
+            mg_targets = [t2, t3]
+            for i in range(self.stat_machinegun):
+                tm = mg_targets[i % len(mg_targets)]
+                basem = math.atan2(tm["y"] - self.py, tm["x"] - self.px)
                 j = random.uniform(-0.025, 0.025)
-                a = base + j
+                a = basem + j
                 sp = BASE_BULLET_SPEED + 1.6 + self.stat_machinegun * 0.3
                 self.bullets.append({"x": self.px, "y": self.py, "vx": math.cos(a) * sp, "vy": math.sin(a) * sp, "r": 3, "pierce": 0})
 
-        # RPG launcher shoots rockets with visible reload timer
+        # RPG launcher keeps using nearest
         rpg_lv = self.power_lv.get("rpg_launcher", 0)
         if rpg_lv > 0 and self.cooldowns["rpg_launcher"] <= 0:
+            base1 = math.atan2(t1["y"] - self.py, t1["x"] - self.px)
             rv = 5.8 + rpg_lv * 0.7
-            self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base)*rv, "vy": math.sin(base)*rv, "dmg": 80 + rpg_lv*26, "r": 56 + rpg_lv*6})
+            self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base1)*rv, "vy": math.sin(base1)*rv, "dmg": 80 + rpg_lv*26, "r": 56 + rpg_lv*6})
             self.cooldowns["rpg_launcher"] = max(20, 80 - rpg_lv * 8)
 
         cd = int(BASE_FIRE_CD * (1 - 0.12 * self.stat_rapid))
