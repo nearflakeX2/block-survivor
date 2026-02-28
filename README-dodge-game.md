@@ -7,6 +7,9 @@ Latest updates:
 - PASS 2: Added capturable outposts with periodic defend rewards.
 - PASS 2: Added build shortcuts (`B` wall, `N` trap) with coin costs.
 - PASS 2: Added companion drone helper + `U` upgrade at captured outposts.
+- PASS 3: Added vehicle mount (`X`) with speed/fuel management.
+- PASS 3: Added portal challenge arenas (`J` near portal) with survival rewards.
+- PASS 3: Added roaming world bosses that spawn independently of wave flow.
 - RPG now has a **big obvious explosion**
 - Turrets now **stay until destroyed** (no timeout)
 - Upgrading turret **does not delete old turrets**

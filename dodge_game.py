@@ -296,6 +296,17 @@ class Game:
         self.struct_walls = []
         self.struct_traps = []
         self.companion = {"lv": 1, "x": self.px, "y": self.py, "cd": 0}
+
+        # vehicle + portals + roaming world bosses
+        self.vehicle = {"mounted": False, "fuel": 100.0, "boost": 0}
+        self.portals = [
+            {"x": self.map_w*0.18, "y": self.map_h*0.78, "r": 34},
+            {"x": self.map_w*0.86, "y": self.map_h*0.62, "r": 34},
+        ]
+        self.portal_challenge_t = 0
+        self.portal_reward_ready = False
+        self.world_bosses = []
+        self.world_boss_timer = 22 * 60
         self.banner = "Mouse panel | SPACE dash | B wall | N trap | U drone upgrade | R restart"
 
     # ---------- input ----------
@@ -339,6 +350,10 @@ class Game:
             self.try_build("trap")
         if k == "u" and self.running and not self.paused:
             self.try_upgrade_companion()
+        if k == "x" and self.running and not self.paused:
+            self.toggle_vehicle()
+        if k == "j" and self.running and not self.paused:
+            self.try_enter_portal()
 
     def on_key_up(self, e):
         self.keys.discard(e.keysym.lower())
@@ -731,6 +746,77 @@ class Game:
                 self.fx["zap"].append({"x1": c["x"], "y1": c["y"], "x2": t["x"], "y2": t["y"], "t": 8})
                 c["cd"] = max(18, 42 - c["lv"] * 3)
 
+    def toggle_vehicle(self):
+        self.vehicle["mounted"] = not self.vehicle["mounted"]
+        self.banner = "Mounted rover" if self.vehicle["mounted"] else "Dismounted rover"
+
+    def try_enter_portal(self):
+        if self.portal_challenge_t > 0:
+            return
+        for p0 in self.portals:
+            if math.hypot(self.px-p0["x"], self.py-p0["y"]) <= p0["r"] + 24:
+                self.portal_challenge_t = 22 * 60
+                self.portal_reward_ready = True
+                self.banner = "Portal challenge started! Survive."
+                return
+
+    def update_vehicle(self):
+        if self.vehicle["mounted"]:
+            self.vehicle["fuel"] = max(0.0, self.vehicle["fuel"] - 0.04)
+            if self.vehicle["fuel"] <= 0:
+                self.vehicle["mounted"] = False
+                self.banner = "Vehicle out of fuel"
+        else:
+            self.vehicle["fuel"] = min(100.0, self.vehicle["fuel"] + 0.03)
+
+    def spawn_world_boss(self):
+        ang = random.random() * math.pi * 2
+        dist = 420
+        x = max(40, min(self.map_w-40, self.px + math.cos(ang)*dist))
+        y = max(40, min(self.map_h-40, self.py + math.sin(ang)*dist))
+        self.world_bosses.append({"x": x, "y": y, "hp": 1800 + self.wave*60, "max": 1800 + self.wave*60, "s": 62, "sp": 1.35, "cd": 0})
+        self.float_texts.append({"x": WORLD_W//2, "y": 120, "t": 90, "txt": "ROAMING WORLD BOSS", "c": "#ff8f66"})
+
+    def update_portals_and_world_bosses(self):
+        if self.portal_challenge_t > 0:
+            self.portal_challenge_t -= 1
+            if self.frame % 40 == 0:
+                sx = self.px + random.randint(-240, 240)
+                sy = self.py + random.randint(-200, 200)
+                self.enemies.append({"x": sx, "y": sy, "hp": 32 + self.wave*4, "max": 32 + self.wave*4, "sp": 2.2, "s": 24, "shape": "diamond", "c": "#9f74ff", "variant": "normal", "shoot_cd": 80, "boss": False, "boss_type": None, "skill_cd": 90})
+            if self.portal_challenge_t == 0 and self.portal_reward_ready:
+                self.coins += 120
+                self.banner = "Portal cleared: +120 coins"
+                self.portal_reward_ready = False
+
+        self.world_boss_timer -= 1
+        if self.world_boss_timer <= 0 and len(self.world_bosses) < 2:
+            self.spawn_world_boss()
+            self.world_boss_timer = random.randint(18, 28) * 60
+
+        alive = []
+        for b in self.world_bosses:
+            dx, dy = self.px - b["x"], self.py - b["y"]
+            d = math.hypot(dx, dy) + 1e-6
+            b["x"] += dx/d * b["sp"]
+            b["y"] += dy/d * b["sp"]
+            b["cd"] = max(0, b["cd"] - 1)
+            if d < b["s"]/2 + PLAYER_SIZE/2:
+                self.hp -= 1.6
+            if b["cd"] == 0 and d < 280:
+                self.meteors.append({"x": self.px, "y": self.py, "t": 24, "max_t": 24, "dmg": 18 + self.wave*2, "r": 54})
+                b["cd"] = 150
+            # player bullets can hurt world bosses
+            for bull in self.bullets:
+                if math.hypot(bull["x"]-b["x"], bull["y"]-b["y"]) <= b["s"]/2 + bull["r"]:
+                    b["hp"] -= BASE_BULLET_DMG + self.stat_damage
+            if b["hp"] > 0:
+                alive.append(b)
+            else:
+                self.coins += 180
+                self.float_texts.append({"x": b["x"], "y": b["y"], "t": 50, "txt": "+180 World Boss", "c": "#ffe07a"})
+        self.world_bosses = alive
+
     def start_dash(self):
         if self.dash_cd > 0 or self.dash_t > 0:
             return
@@ -818,6 +904,8 @@ class Game:
         self.update_outposts()
         self.update_buildables()
         self.update_companion()
+        self.update_vehicle()
+        self.update_portals_and_world_bosses()
 
         # auto-scroll power panel smoothly (single-direction loop)
         panel_len = len(self.panel_powers())
@@ -843,6 +931,8 @@ class Game:
                     en["hp"] -= hit_dmg
         else:
             sp = BASE_SPEED + self.stat_speed
+            if self.vehicle["mounted"]:
+                sp *= 1.85
             if self.active_event == "heatwave":
                 sp *= 0.9
             dx = (-sp if "a" in self.keys or "left" in self.keys else 0) + (sp if "d" in self.keys or "right" in self.keys else 0)
@@ -1556,6 +1646,11 @@ class Game:
             x, y, rr = tx(hz["x"]), ty(hz["y"]), ts(hz["r"])
             c.create_oval(x-rr, y-rr, x+rr, y+rr, fill="#476b3f", outline="#8de37a", width=1)
 
+        for p0 in self.portals:
+            x, y, rr = tx(p0["x"]), ty(p0["y"]), ts(p0["r"])
+            c.create_oval(x-rr, y-rr, x+rr, y+rr, outline="#b89cff", width=3)
+            c.create_oval(x-rr*0.55, y-rr*0.55, x+rr*0.55, y+rr*0.55, outline="#e6d7ff", width=2)
+
         # detailed decorative trees (non-patterned positions)
         view_l = self.cam_x - WORLD_W / 2 - 80
         view_r = self.cam_x + WORLD_W / 2 + 80
@@ -1686,6 +1781,14 @@ class Game:
         cx0, cy0 = tx(self.companion["x"]), ty(self.companion["y"])
         c.create_oval(cx0-ts(8), cy0-ts(8), cx0+ts(8), cy0+ts(8), fill="#9ad8ff", outline="#e8f6ff")
 
+        for wb in self.world_bosses:
+            wx, wy, ws = tx(wb["x"]), ty(wb["y"]), ts(wb["s"])
+            c.create_oval(wx-ws/2, wy-ws/2, wx+ws/2, wy+ws/2, fill="#7f2b2b", outline="#ff9a66", width=3)
+            ratio = max(0, wb["hp"]) / max(1, wb["max"])
+            c.create_rectangle(wx-ws/2, wy-ws/2-ts(10), wx+ws/2, wy-ws/2-ts(6), fill="#2b2b2b", outline="")
+            c.create_rectangle(wx-ws/2, wy-ws/2-ts(10), wx-ws/2 + ws*ratio, wy-ws/2-ts(6), fill="#ff8a66", outline="")
+            c.create_text(wx, wy, text="WORLD BOSS", fill="#ffd1b0", font=("Consolas", 8, "bold"))
+
         for en in self.enemies:
             self.draw_enemy(en)
             ex, ey, es = tx(en["x"]), ty(en["y"]), ts(en["s"])
@@ -1751,6 +1854,7 @@ class Game:
         c.create_text(10, 32, anchor="nw", fill="#d2d2d2", font=("Consolas", 10), text=self.banner)
         event_txt = self.active_event.replace("_", " ").title() if self.active_event else "None"
         c.create_text(10, 50, anchor="nw", fill="#d6e5ff", font=("Consolas", 10, "bold"), text=f"Zone: {self.current_zone} | Event: {event_txt}")
+        c.create_text(10, 68, anchor="nw", fill="#d6f1ff", font=("Consolas", 10), text=f"Vehicle: {'ON' if self.vehicle['mounted'] else 'OFF'} Fuel {int(self.vehicle['fuel'])}% | Portal: {self.portal_challenge_t//60 if self.portal_challenge_t>0 else 0}s")
 
         for f in self.float_texts:
             c.create_text(f["x"], f["y"], text=f["txt"], fill=f["c"], font=("Consolas", 10, "bold"))
