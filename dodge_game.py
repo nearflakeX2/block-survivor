@@ -16,6 +16,7 @@ BASE_FIRE_CD = 10
 ENEMY_BASE_HP = 26
 ENEMY_BASE_SPEED = 1.45
 SPAWN_MS = 850
+EVENT_MS = 12000
 
 
 class Game:
@@ -267,6 +268,24 @@ class Game:
             {"x": self.map_w * 0.78, "y": self.map_h * 0.2, "w": self.map_w * 0.07, "h": self.map_h * 0.55, "fx": 0.0, "fy": -1.1},
         ]
 
+        # named world zones + hazards
+        self.zones = [
+            {"name": "Verdant Flats", "x1": 0, "y1": 0, "x2": self.map_w * 0.45, "y2": self.map_h * 0.45, "c": "#4aa35a"},
+            {"name": "Ash Barrens", "x1": self.map_w * 0.45, "y1": 0, "x2": self.map_w, "y2": self.map_h * 0.42, "c": "#8c6d50"},
+            {"name": "Sunken Marsh", "x1": 0, "y1": self.map_h * 0.45, "x2": self.map_w * 0.55, "y2": self.map_h, "c": "#4c7b57"},
+            {"name": "Crystal Steppe", "x1": self.map_w * 0.55, "y1": self.map_h * 0.42, "x2": self.map_w, "y2": self.map_h, "c": "#5f6ea8"},
+        ]
+        self.current_zone = "Verdant Flats"
+
+        # new hazards (beyond river): lava pools + toxic bogs
+        self.lava_pools = [{"x": random.randint(150, self.map_w-150), "y": random.randint(150, self.map_h-150), "r": random.randint(42, 75)} for _ in range(11)]
+        self.toxic_bogs = [{"x": random.randint(150, self.map_w-150), "y": random.randint(150, self.map_h-150), "r": random.randint(55, 95)} for _ in range(10)]
+
+        # biome event rotation
+        self.biome_events = ["heatwave", "toxic_rain", "storm_front"]
+        self.active_event = None
+        self.event_t = 0
+        self.next_event_t = EVENT_MS // FPS_MS
         self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
 
     # ---------- input ----------
@@ -586,6 +605,39 @@ class Game:
                 return r["fx"], r["fy"]
         return 0.0, 0.0
 
+    def get_zone_at(self, x, y):
+        for z in self.zones:
+            if z["x1"] <= x <= z["x2"] and z["y1"] <= y <= z["y2"]:
+                return z
+        return self.zones[0]
+
+    def apply_hazards(self):
+        # lava: direct damage. bog: slow + minor damage.
+        in_bog = False
+        for hz in self.lava_pools:
+            if (self.px-hz["x"])**2 + (self.py-hz["y"])**2 <= hz["r"]**2:
+                self.hp -= 0.26
+                break
+        for hz in self.toxic_bogs:
+            if (self.px-hz["x"])**2 + (self.py-hz["y"])**2 <= hz["r"]**2:
+                self.hp -= 0.08
+                in_bog = True
+                break
+        return in_bog
+
+    def update_biome_event(self):
+        if self.event_t > 0:
+            self.event_t -= 1
+            if self.event_t == 0:
+                self.active_event = None
+            return
+        self.next_event_t -= 1
+        if self.next_event_t <= 0:
+            self.active_event = random.choice(self.biome_events)
+            self.event_t = random.randint(8, 14) * 60
+            self.next_event_t = random.randint(14, 22) * 60
+            self.banner = f"Biome Event: {self.active_event.replace('_',' ').title()}"
+
     def start_dash(self):
         if self.dash_cd > 0 or self.dash_t > 0:
             return
@@ -669,6 +721,7 @@ class Game:
             return
 
         self.frame += 1
+        self.update_biome_event()
 
         # auto-scroll power panel smoothly (single-direction loop)
         panel_len = len(self.panel_powers())
@@ -694,6 +747,8 @@ class Game:
                     en["hp"] -= hit_dmg
         else:
             sp = BASE_SPEED + self.stat_speed
+            if self.active_event == "heatwave":
+                sp *= 0.9
             dx = (-sp if "a" in self.keys or "left" in self.keys else 0) + (sp if "d" in self.keys or "right" in self.keys else 0)
             dy = (-sp if "w" in self.keys or "up" in self.keys else 0) + (sp if "s" in self.keys or "down" in self.keys else 0)
             if dx and dy:
@@ -710,6 +765,16 @@ class Game:
         if rvx or rvy:
             self.px += rvx
             self.py += rvy
+
+        in_bog = self.apply_hazards()
+        if in_bog:
+            self.px -= (self.face_x * 0.35)
+            self.py -= (self.face_y * 0.35)
+
+        if self.active_event == "storm_front":
+            self.px += math.sin(self.frame * 0.07) * 0.45
+        elif self.active_event == "toxic_rain" and self.frame % 25 == 0:
+            self.hp -= 0.22
 
         # no fixed arena clamp: roam freely
 
@@ -1050,8 +1115,20 @@ class Game:
             if en.get("variant") == "tank":
                 mul *= 0.82
 
+            if self.active_event == "heatwave":
+                mul *= 1.12
+            elif self.active_event == "storm_front":
+                en["x"] += math.sin(self.frame * 0.03 + en["y"]*0.01) * 0.4
+
             en["x"] += (dx / d) * en["sp"] * mul
             en["y"] += (dy / d) * en["sp"] * mul
+
+            for hz in self.lava_pools:
+                if (en["x"]-hz["x"])**2 + (en["y"]-hz["y"])**2 <= hz["r"]**2:
+                    en["hp"] -= 0.55
+                    break
+            if self.active_event == "toxic_rain" and self.frame % 30 == 0:
+                en["hp"] -= 0.35
 
             # shooter variant: chips player at range
             if en.get("variant") == "shooter":
@@ -1336,8 +1413,10 @@ class Game:
             c.create_text(WORLD_W//2, HEIGHT-80, text="Classic = normal | Hardcore = faster spawns + lower HP", fill="#aeb8e6", font=("Consolas", 10))
             return
 
-        # world bg (solid green)
-        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill="#2f8f3a", outline="")
+        # world bg + zone tint
+        zone = self.get_zone_at(self.px, self.py)
+        self.current_zone = zone["name"]
+        c.create_rectangle(0, 0, WORLD_W, HEIGHT, fill=zone["c"], outline="")
 
         cam_zoom = 1.0
         # zoom-out now works in both modes (Hardcore zooms more aggressively)
@@ -1365,6 +1444,14 @@ class Game:
                 else:
                     xx = x1 + (i + 1) * (x2 - x1) / 7
                     c.create_line(xx, y1 + t, xx, y1 + t + 18, fill="#bde9ff", width=2)
+
+        # hazards
+        for hz in self.lava_pools:
+            x, y, rr = tx(hz["x"]), ty(hz["y"]), ts(hz["r"])
+            c.create_oval(x-rr, y-rr, x+rr, y+rr, fill="#b94d1f", outline="#ffb36b", width=2)
+        for hz in self.toxic_bogs:
+            x, y, rr = tx(hz["x"]), ty(hz["y"]), ts(hz["r"])
+            c.create_oval(x-rr, y-rr, x+rr, y+rr, fill="#476b3f", outline="#8de37a", width=1)
 
         # detailed decorative trees (non-patterned positions)
         view_l = self.cam_x - WORLD_W / 2 - 80
@@ -1542,6 +1629,8 @@ class Game:
         c.create_text(10, 10, anchor="nw", fill="#f0f0f0", font=("Consolas", 13, "bold"),
                       text=f"HP {int(self.hp)}/{self.max_hp}  Coins {self.coins}  Wave {self.wave}  Kills {self.kills}")
         c.create_text(10, 32, anchor="nw", fill="#d2d2d2", font=("Consolas", 10), text=self.banner)
+        event_txt = self.active_event.replace("_", " ").title() if self.active_event else "None"
+        c.create_text(10, 50, anchor="nw", fill="#d6e5ff", font=("Consolas", 10, "bold"), text=f"Zone: {self.current_zone} | Event: {event_txt}")
 
         for f in self.float_texts:
             c.create_text(f["x"], f["y"], text=f["txt"], fill=f["c"], font=("Consolas", 10, "bold"))

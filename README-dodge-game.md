@@ -1,6 +1,9 @@
 # Block Survivor (Python)
 
 Latest updates:
+- PASS 1: Added named world zones with live zone HUD label.
+- PASS 1: Added biome events (Heatwave, Toxic Rain, Storm Front) that periodically alter combat/movement.
+- PASS 1: Added hazard regions (Lava Pools + Toxic Bogs) in addition to rivers.
 - RPG now has a **big obvious explosion**
 - Turrets now **stay until destroyed** (no timeout)
 - Upgrading turret **does not delete old turrets**
