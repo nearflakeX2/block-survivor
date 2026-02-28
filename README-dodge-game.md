@@ -4,6 +4,9 @@ Latest updates:
 - PASS 1: Added named world zones with live zone HUD label.
 - PASS 1: Added biome events (Heatwave, Toxic Rain, Storm Front) that periodically alter combat/movement.
 - PASS 1: Added hazard regions (Lava Pools + Toxic Bogs) in addition to rivers.
+- PASS 2: Added capturable outposts with periodic defend rewards.
+- PASS 2: Added build shortcuts (`B` wall, `N` trap) with coin costs.
+- PASS 2: Added companion drone helper + `U` upgrade at captured outposts.
 - RPG now has a **big obvious explosion**
 - Turrets now **stay until destroyed** (no timeout)
 - Upgrading turret **does not delete old turrets**

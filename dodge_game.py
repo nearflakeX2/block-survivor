@@ -286,7 +286,17 @@ class Game:
         self.active_event = None
         self.event_t = 0
         self.next_event_t = EVENT_MS // FPS_MS
-        self.banner = "Mouse: click powers on right panel | Wheel scroll | SPACE dash | R restart"
+
+        # outposts + buildables + companion drone
+        self.outposts = [
+            {"x": self.map_w*0.28, "y": self.map_h*0.32, "r": 90, "cap": 0.0, "captured": False, "reward_cd": 0},
+            {"x": self.map_w*0.72, "y": self.map_h*0.28, "r": 90, "cap": 0.0, "captured": False, "reward_cd": 0},
+            {"x": self.map_w*0.56, "y": self.map_h*0.72, "r": 90, "cap": 0.0, "captured": False, "reward_cd": 0},
+        ]
+        self.struct_walls = []
+        self.struct_traps = []
+        self.companion = {"lv": 1, "x": self.px, "y": self.py, "cd": 0}
+        self.banner = "Mouse panel | SPACE dash | B wall | N trap | U drone upgrade | R restart"
 
     # ---------- input ----------
     def on_key_down(self, e):
@@ -323,6 +333,12 @@ class Game:
 
         if k == "space" and self.running and not self.paused:
             self.start_dash()
+        if k == "b" and self.running and not self.paused:
+            self.try_build("wall")
+        if k == "n" and self.running and not self.paused:
+            self.try_build("trap")
+        if k == "u" and self.running and not self.paused:
+            self.try_upgrade_companion()
 
     def on_key_up(self, e):
         self.keys.discard(e.keysym.lower())
@@ -638,6 +654,83 @@ class Game:
             self.next_event_t = random.randint(14, 22) * 60
             self.banner = f"Biome Event: {self.active_event.replace('_',' ').title()}"
 
+    def try_build(self, kind):
+        tx = self.px + self.face_x * 38
+        ty = self.py + self.face_y * 38
+        if kind == "wall":
+            if self.coins < 35:
+                self.banner = "Need 35 coins for wall"
+                return
+            self.coins -= 35
+            self.struct_walls.append({"x": tx, "y": ty, "w": 44, "h": 14, "hp": 120})
+            self.banner = "Built Wall"
+        else:
+            if self.coins < 45:
+                self.banner = "Need 45 coins for trap"
+                return
+            self.coins -= 45
+            self.struct_traps.append({"x": tx, "y": ty, "r": 34, "cd": 0})
+            self.banner = "Placed Trap"
+
+    def try_upgrade_companion(self):
+        near_outpost = any(o["captured"] and math.hypot(self.px-o["x"], self.py-o["y"]) < o["r"] for o in self.outposts)
+        cost = 90 + self.companion["lv"] * 70
+        if not near_outpost:
+            self.banner = "Upgrade companion at captured outpost"
+            return
+        if self.coins < cost:
+            self.banner = f"Need {cost} coins"
+            return
+        self.coins -= cost
+        self.companion["lv"] += 1
+        self.banner = f"Companion upgraded to Lv{self.companion['lv']}"
+
+    def update_outposts(self):
+        for o in self.outposts:
+            nearby_enemies = sum(1 for e in self.enemies if (e["x"]-o["x"])**2 + (e["y"]-o["y"])**2 <= (o["r"]*1.4)**2)
+            in_zone = math.hypot(self.px-o["x"], self.py-o["y"]) <= o["r"]
+            if not o["captured"]:
+                if in_zone and nearby_enemies <= 2:
+                    o["cap"] = min(100.0, o["cap"] + 0.5)
+                else:
+                    o["cap"] = max(0.0, o["cap"] - 0.2)
+                if o["cap"] >= 100.0:
+                    o["captured"] = True
+                    o["reward_cd"] = 14 * 60
+                    self.banner = "Outpost captured!"
+            else:
+                o["reward_cd"] = max(0, o["reward_cd"] - 1)
+                if o["reward_cd"] == 0:
+                    if nearby_enemies <= 3:
+                        reward = 30
+                        self.coins += reward
+                        self.float_texts.append({"x": o["x"], "y": o["y"]-20, "t": 45, "txt": f"+{reward} outpost", "c": "#ffe066"})
+                    o["reward_cd"] = 14 * 60
+
+    def update_buildables(self):
+        self.struct_walls = [w for w in self.struct_walls if w["hp"] > 0]
+        for t in self.struct_traps:
+            t["cd"] = max(0, t["cd"] - 1)
+            if t["cd"] == 0:
+                for en in self.enemies:
+                    if (en["x"]-t["x"])**2 + (en["y"]-t["y"])**2 <= t["r"]**2:
+                        en["hp"] -= 30
+                        t["cd"] = 40
+                        break
+
+    def update_companion(self):
+        c = self.companion
+        tx, ty = self.px - self.face_x * 26, self.py - self.face_y * 26
+        c["x"] += (tx - c["x"]) * 0.18
+        c["y"] += (ty - c["y"]) * 0.18
+        c["cd"] = max(0, c["cd"] - 1)
+        if self.enemies and c["cd"] == 0:
+            t = min(self.enemies, key=lambda e: (e["x"]-c["x"])**2 + (e["y"]-c["y"])**2)
+            if math.hypot(t["x"]-c["x"], t["y"]-c["y"]) < 280:
+                t["hp"] -= 8 + c["lv"] * 4
+                self.fx["zap"].append({"x1": c["x"], "y1": c["y"], "x2": t["x"], "y2": t["y"], "t": 8})
+                c["cd"] = max(18, 42 - c["lv"] * 3)
+
     def start_dash(self):
         if self.dash_cd > 0 or self.dash_t > 0:
             return
@@ -722,6 +815,9 @@ class Game:
 
         self.frame += 1
         self.update_biome_event()
+        self.update_outposts()
+        self.update_buildables()
+        self.update_companion()
 
         # auto-scroll power panel smoothly (single-direction loop)
         panel_len = len(self.panel_powers())
@@ -1165,6 +1261,13 @@ class Game:
                         self.hp -= 4
                     en["skill_cd"] = random.randint(90, 150)
 
+            for w in self.struct_walls:
+                if abs(en["x"] - w["x"]) < w["w"]/2 + en["s"]/2 and abs(en["y"] - w["y"]) < w["h"]/2 + en["s"]/2:
+                    en["hp"] -= 0.25
+                    w["hp"] -= 0.6
+                    en["x"] -= (dx / d) * 1.4
+                    en["y"] -= (dy / d) * 1.4
+
             if d <= en["s"] / 2 + PLAYER_SIZE / 2:
                 self.hp -= 0.45
                 # physical bump so player can't pass through zombies
@@ -1565,6 +1668,23 @@ class Game:
             x4 = f["x"] + f["fx"] * 20 - px * 8
             y4 = f["y"] + f["fy"] * 20 - py * 8
             c.create_polygon(x1, y1, x2, y2, x3, y3, x4, y4, fill="#ff8a3d", outline="#ffd08a", stipple="gray25")
+
+        for o in self.outposts:
+            ox, oy, rr = tx(o["x"]), ty(o["y"]), ts(o["r"])
+            col = "#6de38a" if o["captured"] else "#d2b16a"
+            c.create_oval(ox-rr, oy-rr, ox+rr, oy+rr, outline=col, width=3)
+            c.create_text(ox, oy, text=("OUTPOST" if o["captured"] else f"CAP {int(o['cap'])}%"), fill="#f8e9c9", font=("Consolas", 9, "bold"))
+
+        for w in self.struct_walls:
+            x, y = tx(w["x"]), ty(w["y"])
+            ww, hh = ts(w["w"]), ts(w["h"])
+            c.create_rectangle(x-ww/2, y-hh/2, x+ww/2, y+hh/2, fill="#7c6a55", outline="#d8c6aa")
+        for t in self.struct_traps:
+            x, y, rr = tx(t["x"]), ty(t["y"]), ts(t["r"])
+            c.create_oval(x-rr, y-rr, x+rr, y+rr, outline="#ff9c66", width=1)
+
+        cx0, cy0 = tx(self.companion["x"]), ty(self.companion["y"])
+        c.create_oval(cx0-ts(8), cy0-ts(8), cx0+ts(8), cy0+ts(8), fill="#9ad8ff", outline="#e8f6ff")
 
         for en in self.enemies:
             self.draw_enemy(en)
