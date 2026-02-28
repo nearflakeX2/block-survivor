@@ -25,7 +25,20 @@ Pick a random place in Florida, find one real business that appears to have no w
    - `index.html` (multi-section, polished copy, clear CTAs)
    - `styles.css` (modern responsive styling)
    - `script.js` (small UX enhancements if useful)
-   - Include: hero, services, about, testimonials (marked as sample if invented), service area, FAQ, contact section.
+   - Required sections/features to include on every site:
+     - Hero section
+     - Services
+     - “Why Choose Us”
+     - Ratings summary with visible star rating display
+     - Customer reviews/testimonials (mark clearly as sample if drafted/invented)
+     - Gallery (“Our Gallery”)
+     - Service area/location details
+     - Interactive Google Map embed (or clearly marked map placeholder if embed is unavailable)
+     - Contact info (phone/email/address when publicly available)
+     - Contact methods (“where to contact us”)
+     - Business hours / best times to visit (“when to come in”)
+     - FAQ section
+     - Strong contact/CTA section
 8. Add `README.md` with:
    - what was built
    - what content is factual vs drafted/assumed
