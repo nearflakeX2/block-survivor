@@ -10,6 +10,9 @@ Latest updates:
 - PASS 3: Added vehicle mount (`X`) with speed/fuel management.
 - PASS 3: Added portal challenge arenas (`J` near portal) with survival rewards.
 - PASS 3: Added roaming world bosses that spawn independently of wave flow.
+- PASS 4: Added weapon evolutions (Railgun Rounds + Apocalypse RPG) based on upgrade milestones.
+- PASS 4: Added Rift Zone high-danger area with extra damage/spawns.
+- PASS 4: Added extraction event (`K`) to call evac and survive for payout cashout.
 - RPG now has a **big obvious explosion**
 - Turrets now **stay until destroyed** (no timeout)
 - Upgrading turret **does not delete old turrets**

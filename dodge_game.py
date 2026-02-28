@@ -307,7 +307,13 @@ class Game:
         self.portal_reward_ready = False
         self.world_bosses = []
         self.world_boss_timer = 22 * 60
-        self.banner = "Mouse panel | SPACE dash | B wall | N trap | U drone upgrade | R restart"
+
+        # evolutions + rift zone + extraction event
+        self.evolutions = set()
+        self.rift_zone = {"x": self.map_w*0.82, "y": self.map_h*0.18, "r": 130, "active": True}
+        self.extraction = {"active": False, "x": self.map_w*0.5, "y": self.map_h*0.5, "t": 0, "reward": 0}
+
+        self.banner = "Mouse panel | SPACE dash | B wall | N trap | U drone upgrade | K extraction | R restart"
 
     # ---------- input ----------
     def on_key_down(self, e):
@@ -354,6 +360,8 @@ class Game:
             self.toggle_vehicle()
         if k == "j" and self.running and not self.paused:
             self.try_enter_portal()
+        if k == "k" and self.running and not self.paused:
+            self.call_extraction()
 
     def on_key_up(self, e):
         self.keys.discard(e.keysym.lower())
@@ -817,6 +825,45 @@ class Game:
                 self.float_texts.append({"x": b["x"], "y": b["y"], "t": 50, "txt": "+180 World Boss", "c": "#ffe07a"})
         self.world_bosses = alive
 
+    def check_evolutions(self):
+        if self.power_lv.get("damage_core", 0) >= 3 and self.power_lv.get("rapid_core", 0) >= 2 and "railgun" not in self.evolutions:
+            self.evolutions.add("railgun")
+            self.banner = "Evolution unlocked: Railgun Rounds"
+        if self.power_lv.get("rpg_launcher", 0) >= 3 and self.power_lv.get("cluster_rpg", 0) >= 1 and "apocalypse_rpg" not in self.evolutions:
+            self.evolutions.add("apocalypse_rpg")
+            self.banner = "Evolution unlocked: Apocalypse RPG"
+
+    def update_rift_zone(self):
+        if not self.rift_zone["active"]:
+            return
+        if (self.px-self.rift_zone["x"])**2 + (self.py-self.rift_zone["y"])**2 <= self.rift_zone["r"]**2:
+            if self.frame % 20 == 0:
+                self.hp -= 0.45
+            if self.frame % 55 == 0:
+                sx = self.px + random.randint(-220, 220)
+                sy = self.py + random.randint(-180, 180)
+                self.enemies.append({"x": sx, "y": sy, "hp": 45 + self.wave*5, "max": 45 + self.wave*5, "sp": 2.6, "s": 26, "shape": "hex", "c": "#b25cff", "variant": "charger", "shoot_cd": 80, "boss": False, "boss_type": None, "skill_cd": 90})
+
+    def call_extraction(self):
+        if self.extraction["active"]:
+            return
+        if self.coins < 120:
+            self.banner = "Need 120 coins to call extraction"
+            return
+        self.extraction.update({"active": True, "x": self.px + random.randint(-80, 80), "y": self.py + random.randint(-80, 80), "t": 30*60, "reward": max(120, int(self.coins * 0.55))})
+        self.banner = "Extraction called! Hold the zone."
+
+    def update_extraction(self):
+        if not self.extraction["active"]:
+            return
+        self.extraction["t"] -= 1
+        if math.hypot(self.px-self.extraction["x"], self.py-self.extraction["y"]) > 120 and self.frame % 40 == 0:
+            self.hp -= 0.9
+        if self.extraction["t"] <= 0:
+            self.coins += self.extraction["reward"]
+            self.banner = f"Extraction success: +{self.extraction['reward']}"
+            self.extraction["active"] = False
+
     def start_dash(self):
         if self.dash_cd > 0 or self.dash_t > 0:
             return
@@ -887,7 +934,8 @@ class Game:
         if rpg_lv > 0 and self.cooldowns["rpg_launcher"] <= 0:
             base1 = math.atan2(t1["y"] - self.py, t1["x"] - self.px)
             rv = 5.8 + rpg_lv * 0.7
-            self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base1)*rv, "vy": math.sin(base1)*rv, "dmg": 80 + rpg_lv*26, "r": 56 + rpg_lv*6})
+            bonus = 1.35 if "apocalypse_rpg" in self.evolutions else 1.0
+            self.rockets.append({"x": self.px, "y": self.py, "vx": math.cos(base1)*rv, "vy": math.sin(base1)*rv, "dmg": (80 + rpg_lv*26)*bonus, "r": (56 + rpg_lv*6) + (20 if "apocalypse_rpg" in self.evolutions else 0)})
             self.cooldowns["rpg_launcher"] = max(20, 80 - rpg_lv * 8)
 
         cd = int(BASE_FIRE_CD * (1 - 0.12 * self.stat_rapid))
@@ -906,6 +954,9 @@ class Game:
         self.update_companion()
         self.update_vehicle()
         self.update_portals_and_world_bosses()
+        self.check_evolutions()
+        self.update_rift_zone()
+        self.update_extraction()
 
         # auto-scroll power panel smoothly (single-direction loop)
         panel_len = len(self.panel_powers())
@@ -1139,6 +1190,9 @@ class Game:
             for en in self.enemies:
                 if math.hypot(en["x"] - b["x"], en["y"] - b["y"]) <= en["s"] / 2 + b["r"]:
                     dmg = BASE_BULLET_DMG + self.stat_damage
+                    if "railgun" in self.evolutions:
+                        dmg += 14
+                        b["pierce"] = max(b.get("pierce", 0), 2)
                     if self.stat_exec > 0 and en["hp"] < en["max"] * 0.3:
                         dmg += 10 + self.stat_exec * 5
                     en["hp"] -= dmg
@@ -1646,6 +1700,11 @@ class Game:
             x, y, rr = tx(hz["x"]), ty(hz["y"]), ts(hz["r"])
             c.create_oval(x-rr, y-rr, x+rr, y+rr, fill="#476b3f", outline="#8de37a", width=1)
 
+        if self.rift_zone["active"]:
+            rx, ry, rr = tx(self.rift_zone["x"]), ty(self.rift_zone["y"]), ts(self.rift_zone["r"])
+            c.create_oval(rx-rr, ry-rr, rx+rr, ry+rr, outline="#c56bff", width=3)
+            c.create_text(rx, ry, text="RIFT", fill="#f0c8ff", font=("Consolas", 10, "bold"))
+
         for p0 in self.portals:
             x, y, rr = tx(p0["x"]), ty(p0["y"]), ts(p0["r"])
             c.create_oval(x-rr, y-rr, x+rr, y+rr, outline="#b89cff", width=3)
@@ -1806,6 +1865,11 @@ class Game:
             if en["x"] != ex or en["y"] != ey:
                 c.create_oval(ex-4, ey-4, ex+4, ey+4, fill="#ff6363", outline="")
 
+        if self.extraction["active"]:
+            ex, ey, er = tx(self.extraction["x"]), ty(self.extraction["y"]), ts(120)
+            c.create_oval(ex-er, ey-er, ex+er, ey+er, outline="#9fffd6", width=3)
+            c.create_text(ex, ey, text=f"EXTRACT {self.extraction['t']//60}s", fill="#d9ffef", font=("Consolas", 10, "bold"))
+
         # player
         px, py = tx(self.px), ty(self.py)
         h = ts(PLAYER_SIZE / 2)
@@ -1855,6 +1919,8 @@ class Game:
         event_txt = self.active_event.replace("_", " ").title() if self.active_event else "None"
         c.create_text(10, 50, anchor="nw", fill="#d6e5ff", font=("Consolas", 10, "bold"), text=f"Zone: {self.current_zone} | Event: {event_txt}")
         c.create_text(10, 68, anchor="nw", fill="#d6f1ff", font=("Consolas", 10), text=f"Vehicle: {'ON' if self.vehicle['mounted'] else 'OFF'} Fuel {int(self.vehicle['fuel'])}% | Portal: {self.portal_challenge_t//60 if self.portal_challenge_t>0 else 0}s")
+        evo_txt = ", ".join(sorted(self.evolutions)) if self.evolutions else "None"
+        c.create_text(10, 86, anchor="nw", fill="#f2d8ff", font=("Consolas", 10), text=f"Evolutions: {evo_txt} | Extraction: {'ACTIVE' if self.extraction['active'] else 'Ready'}")
 
         for f in self.float_texts:
             c.create_text(f["x"], f["y"], text=f["txt"], fill=f["c"], font=("Consolas", 10, "bold"))
